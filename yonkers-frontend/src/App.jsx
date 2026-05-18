@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -101,13 +101,113 @@ function Heatmap({hm}){
   </div></div>;
 }
 
+// Real Leaflet map — requires: npm install leaflet react-leaflet
 function GeoMap({hotspots}){
-  return<div style={{height:195,borderRadius:12,background:"linear-gradient(135deg,#dfefff,#f8fbff)",position:"relative",overflow:"hidden",border:`1px solid ${P.line}`}}>
-    <div style={{position:"absolute",right:-40,top:-20,width:140,height:290,background:"#a7d8ff",borderRadius:"55% 0 0 45%",transform:"rotate(8deg)"}}/>
-    <div style={{position:"absolute",left:20,top:62,width:200,height:4,background:"#fff",border:`1px solid #d2dce8`,borderRadius:999,transform:"rotate(-15deg)"}}/>
-    <div style={{position:"absolute",left:15,top:126,width:240,height:4,background:"#fff",border:`1px solid #d2dce8`,borderRadius:999,transform:"rotate(13deg)"}}/>
-    {(hotspots||[]).map(z=><div key={z.location} title={`${z.location}: ${z.count}`} style={{position:"absolute",left:z.x,top:z.y,width:27,height:27,borderRadius:"50%",background:z.color,boxShadow:`0 0 0 7px ${z.color}28`,display:"grid",placeItems:"center",color:"#fff",fontSize:10,fontWeight:900,zIndex:10}}>{z.count}</div>)}
-  </div>;
+  const[L,setL]=useState(null);
+  const[MapComponents,setMapComponents]=useState(null);
+  const mapRef=useRef(null);
+
+  useEffect(()=>{
+    // Dynamically import leaflet to avoid SSR issues
+    Promise.all([
+      import('leaflet'),
+      import('react-leaflet')
+    ]).then(([leaflet,reactLeaflet])=>{
+      // Fix default marker icons
+      delete leaflet.default.Icon.Default.prototype._getIconUrl;
+      leaflet.default.Icon.Default.mergeOptions({
+        iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+      setL(leaflet.default);
+      setMapComponents(reactLeaflet);
+    }).catch(()=>{
+      // Fallback if leaflet not installed
+      setL(null);
+    });
+    // Load leaflet CSS
+    if(!document.getElementById('leaflet-css')){
+      const link=document.createElement('link');
+      link.id='leaflet-css';
+      link.rel='stylesheet';
+      link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+  },[]);
+
+  // Real Yonkers coordinates for each hotspot
+  const hotspotCoords={
+    "Getty Square":   [40.9312,-73.8988],
+    "Waterfront":     [40.9280,-73.8942],
+    "Park Hill":      [40.9356,-73.8847],
+    "Nodine Hill":    [40.9389,-73.9012],
+    "McLean Ave":     [40.9201,-73.8756],
+    "Yonkers Ave":    [40.9145,-73.8934],
+  };
+
+  const priorityColor=(count)=>{
+    if(count>=30) return P.red;
+    if(count>=20) return P.amber;
+    return P.blue;
+  };
+
+  if(!MapComponents||!L){
+    return(
+      <div style={{height:280,borderRadius:12,background:"linear-gradient(135deg,#dfefff,#f8fbff)",border:`1px solid ${P.line}`,display:"grid",placeItems:"center"}}>
+        <div style={{textAlign:"center",color:P.muted}}>
+          <div style={{fontSize:28,marginBottom:8}}>🗺️</div>
+          <div style={{fontSize:13,fontWeight:600}}>Loading map...</div>
+          <div style={{fontSize:11,marginTop:4}}>Run: npm install leaflet react-leaflet</div>
+        </div>
+      </div>
+    );
+  }
+
+  const{MapContainer,TileLayer,CircleMarker,Popup}=MapComponents;
+
+  return(
+    <div style={{height:280,borderRadius:12,overflow:"hidden",border:`1px solid ${P.line}`}}>
+      <MapContainer
+        center={[40.9312,-73.8988]}
+        zoom={13}
+        style={{height:"100%",width:"100%"}}
+        ref={mapRef}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        {(hotspots||[]).map(z=>{
+          const coords=hotspotCoords[z.location]||[40.9312,-73.8988];
+          const color=priorityColor(z.count);
+          return(
+            <CircleMarker
+              key={z.location}
+              center={coords}
+              radius={Math.max(12,z.count/2)}
+              pathOptions={{
+                fillColor:color,
+                fillOpacity:0.85,
+                color:"#fff",
+                weight:2,
+              }}
+            >
+              <Popup>
+                <div style={{textAlign:"center",padding:"4px 8px"}}>
+                  <strong style={{fontSize:14,color:P.navy}}>{z.location}</strong><br/>
+                  <span style={{fontSize:13,color:color,fontWeight:700}}>{z.count} reports</span><br/>
+                  <span style={{fontSize:11,color:P.muted}}>
+                    {z.count>=30?"🔴 Critical hotspot":z.count>=20?"🟡 High activity":"🔵 Moderate activity"}
+                  </span>
+                </div>
+              </Popup>
+            </CircleMarker>
+          );
+        })}
+      </MapContainer>
+    </div>
+  );
 }
 
 // ── Sidebar (reused in admin pages) ──────────────────────────────────────────
@@ -138,107 +238,509 @@ function NavBar({page,setPage,live}){
   </nav>;
 }
 
-// ── PAGE 1: Report Crime ───────────────────────────────────────────────────────
+// ── PAGE 1: Report Crime (Redesigned) ─────────────────────────────────────────
 function PageReportCrime({onSubmit}){
-  const[form,setForm]=useState({type:"",date:"",location:"",contact:"app",details:""});
+  const STEPS=['Category','Details','Evidence','Contact','Review'];
+  const[step,setStep]=useState(0);
+  const[form,setForm]=useState({type:"",date:"",time:"",location:"",details:"",contact:"app",files:[]});
   const[submitted,setSubmitted]=useState(false);
+  const[mapReady,setMapReady]=useState(false);
+  const[MapC,setMapC]=useState(null);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const handleSubmit=async(e)=>{
-    e.preventDefault();
+
+  const CATS=[
+    {key:"Vehicle Incident",icon:"🚗",desc:"Theft, vandalism, abandoned vehicle, or hit-and-run"},
+    {key:"Property Crime",icon:"🏠",desc:"Burglary, theft, damaged property, or trespassing"},
+    {key:"Community Concern",icon:"🧍",desc:"Noise, disorderly conduct, or public nuisance"},
+    {key:"Submit a Tip",icon:"📎",desc:"Share information or photos anonymously"},
+    {key:"Suspicious Activity",icon:"👁️",desc:"Unusual behavior or concerning individuals"},
+    {key:"Assault",icon:"🚨",desc:"Physical altercation or threats of violence"},
+  ];
+
+  const CONTACTS=[
+    {key:"app",icon:"📱",label:"App notification"},
+    {key:"email",icon:"✉️",label:"Email"},
+    {key:"phone",icon:"📞",label:"Phone call"},
+    {key:"anon",icon:"🔒",label:"Stay anonymous"},
+  ];
+
+  useEffect(()=>{
+    if(step===1){
+      Promise.all([import('leaflet'),import('react-leaflet')]).then(([L,RL])=>{
+        delete L.default.Icon.Default.prototype._getIconUrl;
+        L.default.Icon.Default.mergeOptions({
+          iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+        setMapC(RL);setMapReady(true);
+      }).catch(()=>{});
+      if(!document.getElementById('lf-css-rc')){
+        const l=document.createElement('link');l.id='lf-css-rc';l.rel='stylesheet';
+        l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);
+      }
+    }
+  },[step]);
+
+  function MapClickHandler(){
+    const{useMapEvents}=MapC;
+    useMapEvents({click(e){
+      set('lat',e.latlng.lat);set('lng',e.latlng.lng);
+      set('location',`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);
+    }});
+    return null;
+  }
+
+  const handleSubmit=async()=>{
     try{await fetch(`${API}/reports`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({category:form.type||"Other",location:form.location||"Unknown",priority:"Normal",channel:"Web",description:form.details})});}catch{}
     setSubmitted(true);if(onSubmit)onSubmit();
   };
-  const types=[{icon:"🚗",t:"Vehicle Incident",d:"Theft from auto, vandalism, abandoned vehicle, or hit-and-run."},{icon:"🏠",t:"Property Crime",d:"Burglary, theft, damaged property, trespassing, or suspicious activity."},{icon:"🧍",t:"Community Concern",d:"Noise, disorderly conduct, public nuisance, or neighborhood safety."},{icon:"📎",t:"Submit a Tip",d:"Share information, photos, videos, or license plate details anonymously."}];
-  if(submitted)return<div style={{minHeight:"70vh",display:"grid",placeItems:"center",background:P.bg}}><div style={{background:P.card,borderRadius:20,padding:"40px 36px",textAlign:"center",maxWidth:400,boxShadow:"0 16px 48px rgba(15,35,63,.12)"}}>
-    <div style={{fontSize:56,marginBottom:14}}>✅</div>
-    <h2 style={{margin:"0 0 10px",color:P.navy,fontSize:22}}>Report Submitted!</h2>
-    <p style={{color:P.muted,marginBottom:24,lineHeight:1.6}}>Your case number is <strong style={{color:P.blue}}>YR-2026-{rand(1000,9999)}</strong>. You'll receive updates via your selected contact preference.</p>
-    <button onClick={()=>setSubmitted(false)} style={{background:P.blue,color:"#fff",border:0,borderRadius:10,padding:"12px 28px",fontWeight:700,cursor:"pointer",fontSize:15}}>Submit Another Report</button>
-  </div></div>;
-  return<div style={{background:P.bg,minHeight:"100vh"}}>
-    <div style={{background:`linear-gradient(135deg,${P.navy},#1565c0)`,color:"#fff",padding:"28px 24px 40px"}}>
-      <div style={{maxWidth:1100,margin:"0 auto"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:16,flexWrap:"wrap",marginBottom:28}}>
-          <div><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".1em",opacity:.78,marginBottom:5}}>City of Yonkers · Public Safety</div><h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:900}}>Integrated Crime Reporting & Community Response</h1></div>
-          <a href="tel:911" style={{background:P.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontWeight:800,textDecoration:"none",fontSize:14,flexShrink:0}}>🚨 Call 911</a>
+
+  const canNext=()=>{
+    if(step===0) return !!form.type;
+    if(step===1) return !!form.location||!!form.details;
+    return true;
+  };
+
+  if(submitted)return(
+    <div style={{minHeight:"80vh",display:"grid",placeItems:"center",background:P.bg}}>
+      <div style={{background:P.card,borderRadius:20,padding:"48px 40px",textAlign:"center",maxWidth:420,boxShadow:"0 16px 48px rgba(15,35,63,.1)"}}>
+        <div style={{width:72,height:72,borderRadius:"50%",background:"#e8f6ee",display:"grid",placeItems:"center",margin:"0 auto 20px",fontSize:32}}>✅</div>
+        <h2 style={{margin:"0 0 10px",color:P.navy,fontSize:22,fontWeight:700}}>Report submitted!</h2>
+        <p style={{color:P.muted,marginBottom:8,lineHeight:1.6,fontSize:14}}>Your case number is</p>
+        <div style={{background:"#eef4ff",borderRadius:10,padding:"12px 20px",marginBottom:20,display:"inline-block"}}>
+          <span style={{fontWeight:700,color:P.blue,fontSize:18,letterSpacing:".04em"}}>YR-2026-{rand(1000,9999)}</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:20,alignItems:"start",flexWrap:"wrap"}}>
-          <div><h2 style={{margin:"0 0 8px",fontSize:20,fontWeight:800}}>Report a crime or safety concern</h2><p style={{margin:0,opacity:.85,lineHeight:1.6,fontSize:14}}>Submit non-emergency reports, upload evidence, check case status, and connect with Yonkers public safety services from one secure app.</p></div>
-          <div style={{background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",borderRadius:12,padding:"14px 18px",minWidth:210}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Public Safety App Status</div>
-            {[["Online Reporting","Available"],["Evidence Upload","Secure"],["Case Notifications","Enabled"]].map(([k,v])=><div key={k} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid rgba(255,255,255,.1)",fontSize:12}}><span style={{opacity:.85}}>{k}</span><span style={{background:"rgba(32,163,91,.25)",color:"#7fffa8",borderRadius:999,padding:"1px 8px",fontWeight:700,fontSize:11}}>{v}</span></div>)}
-          </div>
+        <p style={{color:P.muted,marginBottom:24,fontSize:13}}>You'll receive updates via your selected contact preference. Save your case number for reference.</p>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={()=>{setSubmitted(false);setStep(0);setForm({type:"",date:"",time:"",location:"",details:"",contact:"app",files:[]});}} style={{flex:1,background:P.card,color:P.text,border:`1px solid ${P.line}`,borderRadius:10,padding:"11px",fontWeight:600,cursor:"pointer",fontSize:13}}>New report</button>
+          <button style={{flex:1,background:P.navy,color:"#fff",border:0,borderRadius:10,padding:"11px",fontWeight:600,cursor:"pointer",fontSize:13}}>Track status</button>
         </div>
       </div>
     </div>
-    <main style={{padding:"24px",maxWidth:1100,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
-        <div><h2 style={{margin:0,fontSize:17,fontWeight:800}}>What would you like to report?</h2><p style={{margin:"3px 0 0",color:P.muted,fontSize:13}}>Choose a category to begin a guided report.</p></div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:24}}>
-        {types.map(t=><div key={t.t} onClick={()=>set("type",t.t)} style={{background:form.type===t.t?"#eef4ff":P.card,border:`2px solid ${form.type===t.t?P.blue:P.line}`,borderRadius:14,padding:18,cursor:"pointer",transition:"all .2s"}}>
-          <div style={{fontSize:30,marginBottom:8}}>{t.icon}</div>
-          <h3 style={{margin:"0 0 5px",fontSize:14,fontWeight:800,color:P.text}}>{t.t}</h3>
-          <p style={{margin:0,fontSize:12,color:P.muted,lineHeight:1.5}}>{t.d}</p>
-        </div>)}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:18,alignItems:"start"}}>
-        <div style={{background:P.card,borderRadius:14,padding:22,boxShadow:"0 6px 20px rgba(15,35,63,.07)"}}>
-          <h3 style={{margin:"0 0 4px",fontSize:16,fontWeight:800}}>Incident Report Form</h3>
-          <p style={{margin:"0 0 14px",color:P.muted,fontSize:13}}>Fill in the details below to submit your report.</p>
-          <div style={{background:"#fff8e7",border:`1px solid ${P.amber}`,borderRadius:9,padding:"9px 13px",marginBottom:16,fontSize:13}}><strong>⚠️ Emergency notice:</strong> Do not use this form for active emergencies or crimes in progress. <strong>Call 911.</strong></div>
-          <form onSubmit={handleSubmit}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-              <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Incident Type *</label>
-                <select value={form.type} onChange={e=>set("type",e.target.value)} required style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,background:P.card}}>
-                  <option value="">Select a type</option>
-                  <option>Vehicle Incident</option><option>Property Crime</option><option>Community Concern</option><option>Submit a Tip</option><option>Suspicious Activity</option><option>Assault</option>
-                </select></div>
-              <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Date / Time *</label>
-                <input type="datetime-local" value={form.date} onChange={e=>set("date",e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div>
+  );
+
+  return(
+    <div style={{background:P.bg,minHeight:"100vh"}}>
+      {/* Hero */}
+      <div style={{background:`linear-gradient(135deg,${P.navy},#1565c0)`,color:"#fff",padding:"28px 32px 44px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <svg width="42" height="48" viewBox="0 0 42 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 2L3 9V23C3 33.5 11 42 21 46C31 42 39 33.5 39 23V9L21 2Z" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5"/>
+              <path d="M21 8L10 13V23C10 30 15 36.5 21 39.5C27 36.5 32 30 32 23V13L21 8Z" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.25)" strokeWidth="1"/>
+              <text x="21" y="29" textAnchor="middle" fill="white" fontSize="15" fontWeight="bold" fontFamily="Arial, sans-serif">Y</text>
+            </svg>
+            <div>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".12em",opacity:.75,marginBottom:3}}>City of Yonkers · Public Safety</div>
+              <h1 style={{margin:0,fontSize:20,fontWeight:900,lineHeight:1.3}}>Integrated Crime Reporting & Community Response</h1>
             </div>
-            <div style={{marginBottom:12}}><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Incident Location *</label>
-              <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="Street address, intersection, landmark, or map pin" required style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-              <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Contact Preference</label>
-                <select value={form.contact} onChange={e=>set("contact",e.target.value)} style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,background:P.card}}>
-                  <option value="app">App notification</option><option value="phone">By phone</option><option value="email">By email</option><option value="anon">Anonymously</option>
-                </select></div>
-              <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Evidence Upload</label>
-                <input type="file" multiple style={{width:"100%",padding:"7px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13}}/></div>
-            </div>
-            <div style={{marginBottom:18}}><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Incident Details</label>
-              <textarea value={form.details} onChange={e=>set("details",e.target.value)} rows={4} placeholder="Describe what happened, who was involved, direction of travel, vehicle description, or other helpful details." style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/></div>
-            <div style={{display:"flex",gap:10}}><button type="submit" style={{background:P.blue,color:"#fff",border:0,borderRadius:10,padding:"11px 22px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Submit Report</button><button type="button" style={{background:"#eef4ff",color:P.blue,border:0,borderRadius:10,padding:"11px 18px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Save Draft</button></div>
-          </form>
+          </div>
+          <a href="tel:911" style={{background:P.red,color:"#fff",borderRadius:10,padding:"10px 18px",fontWeight:800,textDecoration:"none",fontSize:14,flexShrink:0,display:"flex",alignItems:"center",gap:6}}>🚨 Call 911</a>
         </div>
-        <div style={{background:P.card,borderRadius:14,padding:20,boxShadow:"0 6px 20px rgba(15,35,63,.07)"}}>
-          <h3 style={{margin:"0 0 14px",fontSize:15,fontWeight:800}}>How app integration works</h3>
-          {[{n:1,t:"Authenticate",d:"Resident signs in with email, mobile number, or guest/anonymous mode."},{n:2,t:"Capture location",d:"App uses GPS, address lookup, or map pin to route the report correctly."},{n:3,t:"Submit evidence",d:"Photos, videos, documents, and notes are attached to the report record."},{n:4,t:"Track status",d:"Residents receive case number, updates, and follow-up requests in the app."}].map(s=><div key={s.n} style={{display:"flex",gap:11,marginBottom:14}}>
-            <div style={{width:26,height:26,borderRadius:"50%",background:P.blue,color:"#fff",display:"grid",placeItems:"center",fontWeight:900,fontSize:12,flexShrink:0}}>{s.n}</div>
-            <div><h4 style={{margin:"0 0 2px",fontSize:13,fontWeight:700}}>{s.t}</h4><p style={{margin:0,fontSize:12,color:P.muted,lineHeight:1.5}}>{s.d}</p></div>
-          </div>)}
-          <div style={{borderTop:`1px solid ${P.line}`,paddingTop:14,marginTop:6}}>
-            <div style={{fontSize:11,fontWeight:700,color:P.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Integrations</div>
-            {[["CAD / RMS Connector","Route validated reports to dispatch and records management."],["GIS & Crime Map","Geocoding to support neighborhood trend analysis and public map layers."],["Resident Notifications","Status changes, safety alerts via push, SMS, or email."]].map(([k,v])=><div key={k} style={{marginBottom:10}}><strong style={{fontSize:12}}>{k}</strong><p style={{margin:"2px 0 0",fontSize:11,color:P.muted}}>{v}</p></div>)}
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:20,alignItems:"center",flexWrap:"wrap"}}>
+          <div>
+            <h2 style={{margin:"0 0 6px",fontSize:16,fontWeight:700,opacity:.95}}>Report a crime or safety concern</h2>
+            <p style={{margin:0,opacity:.8,fontSize:13,lineHeight:1.6}}>Submit non-emergency reports, upload evidence, check case status, and connect with Yonkers public safety services from one secure app.</p>
+          </div>
+          <div style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.18)",borderRadius:12,padding:"12px 16px",minWidth:200,flexShrink:0}}>
+            <div style={{fontSize:11,fontWeight:700,marginBottom:8,opacity:.9}}>System Status</div>
+            {[["🟢","Online reporting"],["🔒","Evidence upload"],["🔔","Notifications"]].map(([icon,label])=>(
+              <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,.08)",fontSize:11}}>
+                <span style={{opacity:.8}}>{icon} {label}</span>
+                <span style={{background:"rgba(32,163,91,.3)",color:"#7fffa8",borderRadius:999,padding:"1px 8px",fontWeight:700,fontSize:10}}>Active</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </main>
-  </div>;
+
+      <div style={{maxWidth:980,margin:"0 auto",padding:"0 24px 40px",marginTop:-20}}>
+
+        {/* Progress bar */}
+        <div style={{background:P.card,borderRadius:12,padding:"14px 20px",marginBottom:16,boxShadow:"0 4px 14px rgba(15,35,63,.07)",display:"flex",alignItems:"center",gap:0}}>
+          {STEPS.map((s,i)=>(
+            <React.Fragment key={s}>
+              <div style={{display:"flex",alignItems:"center",gap:6,cursor:i<step?"pointer":"default"}} onClick={()=>i<step&&setStep(i)}>
+                <div style={{width:24,height:24,borderRadius:"50%",background:i<step?P.green:i===step?P.blue:"#e8eef6",color:i<=step?"#fff":P.muted,display:"grid",placeItems:"center",fontSize:11,fontWeight:700,flexShrink:0,transition:"all .2s"}}>
+                  {i<step?"✓":i+1}
+                </div>
+                <span style={{fontSize:12,fontWeight:i===step?600:400,color:i===step?P.blue:i<step?P.green:P.muted,whiteSpace:"nowrap"}}>{s}</span>
+              </div>
+              {i<STEPS.length-1&&<div style={{flex:1,height:2,background:i<step?P.green:"#e8eef6",margin:"0 8px",borderRadius:999,transition:"background .3s",minWidth:12}}/>}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Emergency notice */}
+        <div style={{background:"#fff8e7",border:`1px solid ${P.amber}`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#633806",display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+          <span><strong>Emergency?</strong> Do not use this form for active crimes in progress or immediate danger. <strong>Call 911 immediately.</strong></span>
+        </div>
+
+        {/* Step 0 — Category */}
+        {step===0&&(
+          <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16,alignItems:"start"}}>
+            <div style={{background:P.card,borderRadius:14,overflow:"hidden",boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+              <div style={{padding:"18px 20px",borderBottom:`1px solid ${P.line}`}}>
+                <h2 style={{margin:0,fontSize:16,fontWeight:700,color:P.navy}}>What would you like to report?</h2>
+                <p style={{margin:"4px 0 0",fontSize:12,color:P.muted}}>Choose the category that best describes the incident</p>
+              </div>
+              <div style={{padding:20,display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {CATS.map(c=>(
+                  <div key={c.key} onClick={()=>set("type",c.key)} style={{border:`${form.type===c.key?"2px solid "+P.blue:"1px solid "+P.line}`,background:form.type===c.key?"#eef4ff":P.card,borderRadius:11,padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:12,transition:"all .15s"}}>
+                    <div style={{width:38,height:38,borderRadius:9,background:form.type===c.key?"#b5d4f4":"#f1f5f9",display:"grid",placeItems:"center",fontSize:20,flexShrink:0}}>{c.icon}</div>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:P.text,marginBottom:3}}>{c.key}</div>
+                      <div style={{fontSize:11,color:P.muted,lineHeight:1.4}}>{c.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Side info panel */}
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{background:P.card,borderRadius:14,padding:18,boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+                <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:P.navy}}>How it works</h3>
+                {[{n:1,icon:"📋",t:"Choose category",d:"Select what best describes your incident"},{n:2,icon:"📍",t:"Add location",d:"Pin the location on the map or type an address"},{n:3,icon:"📸",t:"Upload evidence",d:"Attach photos, videos, or documents"},{n:4,icon:"✅",t:"Submit & track",d:"Get a case number and live status updates"}].map(s=>(
+                  <div key={s.n} style={{display:"flex",gap:10,marginBottom:12,alignItems:"flex-start"}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:P.navy,color:"#fff",display:"grid",placeItems:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{s.n}</div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:P.text,marginBottom:2}}>{s.icon} {s.t}</div>
+                      <div style={{fontSize:11,color:P.muted,lineHeight:1.4}}>{s.d}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{background:"#fff8e7",border:`1px solid ${P.amber}`,borderRadius:12,padding:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#925a00",marginBottom:6}}>⏱ Takes about 3 min</div>
+                <div style={{fontSize:11,color:"#633806",lineHeight:1.5}}>Reports are reviewed within 24 hours. For urgent matters use priority escalation after submission.</div>
+              </div>
+              <div style={{background:"#eef4ff",border:`1px solid ${P.blue}`,borderRadius:12,padding:14}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#174073",marginBottom:6}}>📞 Non-emergency line</div>
+                <div style={{fontSize:13,fontWeight:700,color:P.blue,marginBottom:2}}>(914) 377-7900</div>
+                <div style={{fontSize:11,color:P.muted}}>Mon–Fri 8AM–6PM</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1 — Details */}
+        {step===1&&(
+          <div style={{background:P.card,borderRadius:14,overflow:"hidden",boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+            <div style={{padding:"18px 20px",borderBottom:`1px solid ${P.line}`}}>
+              <h2 style={{margin:0,fontSize:16,fontWeight:700,color:P.navy}}>Incident details</h2>
+              <p style={{margin:"4px 0 0",fontSize:12,color:P.muted}}>Tell us when and where it happened</p>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div><label style={{display:"block",fontSize:11,fontWeight:600,color:P.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:".05em"}}>Date</label>
+                  <input type="date" value={form.date} onChange={e=>set("date",e.target.value)} style={{width:"100%",padding:"9px 12px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div>
+                <div><label style={{display:"block",fontSize:11,fontWeight:600,color:P.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:".05em"}}>Approximate time</label>
+                  <input type="time" value={form.time} onChange={e=>set("time",e.target.value)} style={{width:"100%",padding:"9px 12px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div>
+              </div>
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <label style={{display:"block",fontSize:11,fontWeight:600,color:P.muted,textTransform:"uppercase",letterSpacing:".05em"}}>📍 Pin location on map <span style={{fontWeight:400,textTransform:"none",fontSize:11}}>(click map or type below)</span></label>
+                  <button type="button" onClick={()=>{
+                    if(!navigator.geolocation){alert("Geolocation not supported by your browser.");return;}
+                    navigator.geolocation.getCurrentPosition(pos=>{
+                      set("lat",pos.coords.latitude);
+                      set("lng",pos.coords.longitude);
+                      set("location",`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+                    },()=>alert("Unable to retrieve your location. Please allow location access."));
+                  }} style={{background:"#eef4ff",color:P.blue,border:`1px solid #b5d4f4`,borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
+                    📍 Use my location
+                  </button>
+                </div>
+                <div style={{borderRadius:10,overflow:"hidden",border:`1px solid ${P.line}`,marginBottom:8}}>
+                  {mapReady&&MapC
+                    ?<MapC.MapContainer center={[form.lat||40.9312,form.lng||(-73.8988)]} zoom={14} style={{height:240,width:"100%"}}>
+                        <MapC.TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                        <MapClickHandler/>
+                        <MapC.Marker position={[form.lat||40.9312,form.lng||(-73.8988)]}><MapC.Popup>📍 Incident here</MapC.Popup></MapC.Marker>
+                      </MapC.MapContainer>
+                    :<div style={{height:240,background:"#f0f6ff",display:"grid",placeItems:"center",color:P.muted,fontSize:13}}>🗺️ Loading map...</div>
+                  }
+                </div>
+                <input value={form.location} onChange={e=>set("location",e.target.value)} placeholder="Street address, intersection, or landmark…" style={{width:"100%",padding:"9px 12px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+                {form.lat&&form.lat!==40.9312&&<div style={{fontSize:11,color:P.green,marginTop:4,fontWeight:600}}>✅ Pin placed at {Number(form.lat).toFixed(4)}, {Number(form.lng).toFixed(4)}</div>}
+              </div>
+              <div>
+                <label style={{display:"block",fontSize:11,fontWeight:600,color:P.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:".05em"}}>What happened?</label>
+                <textarea value={form.details} onChange={e=>set("details",e.target.value)} rows={4} placeholder="Describe what happened, who was involved, direction of travel, vehicle descriptions, clothing, or other helpful details…" style={{width:"100%",padding:"9px 12px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Evidence */}
+        {step===2&&(
+          <div style={{background:P.card,borderRadius:14,overflow:"hidden",boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+            <div style={{padding:"18px 20px",borderBottom:`1px solid ${P.line}`}}>
+              <h2 style={{margin:0,fontSize:16,fontWeight:700,color:P.navy}}>Upload evidence <span style={{fontWeight:400,color:P.muted,fontSize:14}}>(optional)</span></h2>
+              <p style={{margin:"4px 0 0",fontSize:12,color:P.muted}}>Photos, videos, or documents related to the incident</p>
+            </div>
+            <div style={{padding:20}}>
+              <label style={{display:"block",border:`2px dashed ${P.line}`,borderRadius:12,padding:"32px 20px",textAlign:"center",cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                <input type="file" multiple accept="image/*,video/*,.pdf" onChange={e=>set("files",Array.from(e.target.files))} style={{display:"none"}}/>
+                <div style={{fontSize:32,marginBottom:10}}>📁</div>
+                <div style={{fontSize:14,fontWeight:600,color:P.text,marginBottom:4}}>Drag files here or click to browse</div>
+                <div style={{fontSize:12,color:P.muted}}>JPG, PNG, MP4, PDF — max 50MB each</div>
+              </label>
+              {form.files.length>0&&(
+                <div style={{marginTop:14}}>
+                  {form.files.map((f,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",background:"#f8faff",borderRadius:8,marginBottom:6,fontSize:13}}>
+                      <span style={{fontSize:18}}>📄</span>
+                      <span style={{flex:1,color:P.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</span>
+                      <span style={{color:P.muted,fontSize:11}}>{(f.size/1024).toFixed(0)}KB</span>
+                      <button onClick={()=>set("files",form.files.filter((_,j)=>j!==i))} style={{background:"none",border:0,color:P.muted,cursor:"pointer",fontSize:16,padding:0}}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{marginTop:16,background:"#eef4ff",borderRadius:10,padding:"12px 14px",fontSize:12,color:"#174073"}}>
+                <strong>Tip:</strong> Clear photos of the scene, vehicles, or suspects significantly improve case resolution rates.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3 — Contact */}
+        {step===3&&(
+          <div style={{background:P.card,borderRadius:14,overflow:"hidden",boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+            <div style={{padding:"18px 20px",borderBottom:`1px solid ${P.line}`}}>
+              <h2 style={{margin:0,fontSize:16,fontWeight:700,color:P.navy}}>How should we contact you?</h2>
+              <p style={{margin:"4px 0 0",fontSize:12,color:P.muted}}>Choose how you want to receive case updates</p>
+            </div>
+            <div style={{padding:20}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+                {CONTACTS.map(c=>(
+                  <div key={c.key} onClick={()=>set("contact",c.key)} style={{border:`${form.contact===c.key?"2px solid "+P.blue:"1px solid "+P.line}`,background:form.contact===c.key?"#eef4ff":P.card,borderRadius:11,padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,fontSize:14,fontWeight:form.contact===c.key?600:400,color:form.contact===c.key?P.blue:P.text,transition:"all .15s"}}>
+                    <span style={{fontSize:22}}>{c.icon}</span>{c.label}
+                  </div>
+                ))}
+              </div>
+              {form.contact!=="anon"&&(
+                <div style={{marginTop:4}}>
+                  <label style={{display:"block",fontSize:11,fontWeight:600,color:P.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:".05em"}}>{form.contact==="email"?"Email address":form.contact==="phone"?"Phone number":"Notification email"}</label>
+                  <input type={form.contact==="email"?"email":"tel"} placeholder={form.contact==="email"?"your@email.com":form.contact==="phone"?"(914) 555-0100":"your@email.com"} style={{width:"100%",padding:"9px 12px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/>
+                </div>
+              )}
+              {form.contact==="anon"&&<div style={{background:"#e8f6ee",borderRadius:10,padding:"12px 14px",fontSize:12,color:"#146c3e",marginTop:4}}>✅ Your identity will not be shared with officers. The report itself is still fully processed.</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Step 4 — Review */}
+        {step===4&&(
+          <div style={{background:P.card,borderRadius:14,overflow:"hidden",boxShadow:"0 4px 14px rgba(15,35,63,.07)"}}>
+            <div style={{padding:"18px 20px",borderBottom:`1px solid ${P.line}`}}>
+              <h2 style={{margin:0,fontSize:16,fontWeight:700,color:P.navy}}>Review your report</h2>
+              <p style={{margin:"4px 0 0",fontSize:12,color:P.muted}}>Please check the details before submitting</p>
+            </div>
+            <div style={{padding:20}}>
+              {[
+                ["Category",form.type||"Not selected"],
+                ["Date & time",`${form.date||"Not set"} ${form.time||""}`.trim()],
+                ["Location",form.location||"Not set"],
+                ["Description",form.details||(
+                  <span style={{color:P.muted,fontStyle:"italic"}}>No description provided</span>
+                )],
+                ["Evidence",form.files.length>0?`${form.files.length} file(s) attached`:"No files attached"],
+                ["Contact",CONTACTS.find(c=>c.key===form.contact)?.label||"App notification"],
+              ].map(([label,value])=>(
+                <div key={label} style={{display:"flex",gap:16,alignItems:"flex-start",padding:"10px 0",borderBottom:`1px solid ${P.line}`}}>
+                  <span style={{fontSize:12,fontWeight:600,color:P.muted,minWidth:110,paddingTop:1}}>{label}</span>
+                  <span style={{fontSize:13,color:P.text,flex:1,lineHeight:1.5}}>{value}</span>
+                </div>
+              ))}
+              <div style={{marginTop:16,background:"#fff8e7",borderRadius:10,padding:"11px 14px",fontSize:12,color:"#633806"}}>
+                By submitting this report you confirm the information is accurate to the best of your knowledge.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation buttons */}
+        <div style={{display:"flex",gap:10,marginTop:14}}>
+          {step>0&&<button onClick={()=>setStep(s=>s-1)} style={{background:P.card,color:P.text,border:`1px solid ${P.line}`,borderRadius:10,padding:"12px 20px",fontWeight:600,cursor:"pointer",fontSize:13,minWidth:100}}>← Back</button>}
+          {step<4
+            ?<button onClick={()=>canNext()&&setStep(s=>s+1)} style={{flex:1,background:canNext()?P.navy:"#b0bec5",color:"#fff",border:0,borderRadius:10,padding:"12px",fontWeight:600,cursor:canNext()?"pointer":"not-allowed",fontSize:14,transition:"background .2s"}}>
+                {step===0&&!form.type?"Select a category to continue":"Continue →"}
+              </button>
+            :<button onClick={handleSubmit} style={{flex:1,background:P.green,color:"#fff",border:0,borderRadius:10,padding:"12px",fontWeight:700,cursor:"pointer",fontSize:14}}>✅ Submit report</button>
+          }
+        </div>
+        {step===0&&<p style={{textAlign:"center",fontSize:11,color:P.muted,marginTop:10}}>Takes about 3 minutes to complete</p>}
+      </div>
+    </div>
+  );
 }
 
 // ── PAGE 2: Citizen Dashboard ─────────────────────────────────────────────────
-function PageDashboard(){
-  const cases=[{id:"YR-2026-0814",type:"Property Crime",location:"123 Warburton Ave",submitted:"May 12",status:"Under Review",update:"Assigned to Field Unit A"},{id:"YR-2026-0791",type:"Vehicle Incident",location:"Oak St Parking Lot",submitted:"May 8",status:"Resolved",update:"Case closed — officer report filed"},{id:"YR-2026-0742",type:"Suspicious Activity",location:"Nodine Hill Park",submitted:"May 3",status:"Pending",update:"Awaiting additional information"}];
+function PageDashboard({setPage}){
+  const INIT_CASES=[
+    {id:"YR-2026-0814",type:"Property Crime",location:"123 Warburton Ave",submitted:"May 12",status:"Under Review",update:"Assigned to Field Unit A",priority:"High",description:"Burglary reported at residence. Back window was broken. Laptop and jewelry missing.",officer:"Officer James Carter",phone:"(914) 377-7900",nextStep:"Evidence review scheduled for May 20"},
+    {id:"YR-2026-0791",type:"Vehicle Incident",location:"Oak St Parking Lot",submitted:"May 8",status:"Resolved",update:"Case closed — officer report filed",priority:"Normal",description:"Vehicle break-in. Passenger window smashed. Bag and sunglasses taken from front seat.",officer:"Officer Maria Lopez",phone:"(914) 377-7900",nextStep:"Case closed. Report available for insurance."},
+    {id:"YR-2026-0742",type:"Suspicious Activity",location:"Nodine Hill Park",submitted:"May 3",status:"Pending",update:"Awaiting additional information",priority:"Low",description:"Unknown individual observed near playground after closing hours. No direct threat reported.",officer:"Unassigned",phone:"(914) 377-7900",nextStep:"Pending precinct review"},
+  ];
+  const[cases,setCases]=useState(INIT_CASES);
+  const[selectedCase,setSelectedCase]=useState(null);
+  const[showNewReport,setShowNewReport]=useState(false);
+  const[mapReady,setMapReady]=useState(false);
+  const[MapComponents,setMapComponents]=useState(null);
+  const[newForm,setNewForm]=useState({type:"",location:"",details:"",lat:40.9312,lng:-73.8988});
+  const[submitted,setSubmitted]=useState(false);
   const sc={Resolved:{bg:"#e8f6ee",cl:"#146c3e"},"Under Review":{bg:"#fff2cc",cl:"#925a00"},Pending:{bg:"#eef4ff",cl:"#174073"}};
+  const pc={High:{bg:"#ffe7e7",cl:"#b42323"},Normal:{bg:"#eef4ff",cl:"#174073"},Low:{bg:"#f1f5f9",cl:"#475569"}};
+  const setF=(k,v)=>setNewForm(f=>({...f,[k]:v}));
+
+  useEffect(()=>{
+    if(showNewReport){
+      Promise.all([import('leaflet'),import('react-leaflet')]).then(([L,RL])=>{
+        delete L.default.Icon.Default.prototype._getIconUrl;
+        L.default.Icon.Default.mergeOptions({
+          iconRetinaUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+          iconUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          shadowUrl:'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+        setMapComponents(RL);
+        setMapReady(true);
+      }).catch(()=>{});
+      if(!document.getElementById('leaflet-css2')){
+        const link=document.createElement('link');
+        link.id='leaflet-css2';link.rel='stylesheet';
+        link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+    }
+  },[showNewReport]);
+
+  const handleSubmitNew=(e)=>{
+    e.preventDefault();
+    const newCase={
+      id:`YR-2026-${rand(1000,9999)}`,
+      type:newForm.type||"Other",
+      location:newForm.location||`${newForm.lat.toFixed(4)}, ${newForm.lng.toFixed(4)}`,
+      submitted:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+      status:"Pending",
+      update:"Received — awaiting initial review",
+      priority:"Normal",
+      description:newForm.details,
+      officer:"Unassigned",
+      phone:"(914) 377-7900",
+      nextStep:"Pending precinct review",
+    };
+    setCases(c=>[newCase,...c]);
+    setSubmitted(true);
+    setTimeout(()=>{setSubmitted(false);setShowNewReport(false);setNewForm({type:"",location:"",details:"",lat:40.9312,lng:-73.8988});},2500);
+  };
+
+  // Click handler component for map
+  function LocationPicker(){
+    const{useMapEvents}=MapComponents;
+    useMapEvents({click(e){setF('lat',e.latlng.lat);setF('lng',e.latlng.lng);setF('location',`${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`);},});
+    return null;
+  }
+
   return<div style={{background:P.bg,minHeight:"100vh"}}>
+
+    {/* ── View Details Modal ── */}
+    {selectedCase&&<div style={{position:"fixed",inset:0,background:"rgba(10,25,50,.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSelectedCase(null)}>
+      <div style={{background:P.card,borderRadius:18,padding:28,maxWidth:540,width:"100%",boxShadow:"0 24px 64px rgba(10,25,50,.2)",position:"relative"}} onClick={e=>e.stopPropagation()}>
+        <button onClick={()=>setSelectedCase(null)} style={{position:"absolute",top:16,right:16,background:"#f1f5f9",border:0,borderRadius:"50%",width:32,height:32,fontSize:18,cursor:"pointer",color:P.muted}}>×</button>
+        <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:18,flexWrap:"wrap"}}>
+          <span style={{fontWeight:900,color:P.blue,fontSize:16}}>{selectedCase.id}</span>
+          <span style={{...sc[selectedCase.status],borderRadius:999,padding:"3px 10px",fontWeight:800,fontSize:12}}>{selectedCase.status}</span>
+          <span style={{...pc[selectedCase.priority],borderRadius:999,padding:"3px 10px",fontWeight:800,fontSize:12}}>{selectedCase.priority}</span>
+        </div>
+        <h2 style={{margin:"0 0 14px",fontSize:18,fontWeight:900,color:P.navy}}>{selectedCase.type}</h2>
+        <div style={{display:"grid",gap:12,marginBottom:18}}>
+          {[["📍 Location",selectedCase.location],["📅 Submitted",selectedCase.submitted],["👮 Assigned Officer",selectedCase.officer],["📞 Contact",selectedCase.phone],["💬 Latest Update",selectedCase.update],["🔜 Next Step",selectedCase.nextStep]].map(([l,v])=><div key={l} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+            <span style={{fontSize:12,fontWeight:700,color:P.muted,minWidth:140,paddingTop:1}}>{l}</span>
+            <span style={{fontSize:13,color:P.text,fontWeight:500}}>{v}</span>
+          </div>)}
+        </div>
+        <div style={{background:"#f8faff",borderRadius:11,padding:14,marginBottom:18}}>
+          <div style={{fontSize:12,fontWeight:700,color:P.muted,marginBottom:6}}>📋 INCIDENT DESCRIPTION</div>
+          <p style={{margin:0,fontSize:13,color:P.text,lineHeight:1.6}}>{selectedCase.description}</p>
+        </div>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <button onClick={()=>setSelectedCase(null)} style={{flex:1,background:P.blue,color:"#fff",border:0,borderRadius:10,padding:"11px 18px",fontWeight:700,cursor:"pointer",fontSize:13}}>Close</button>
+          <button style={{flex:1,background:"#eef4ff",color:"#174073",border:0,borderRadius:10,padding:"11px 18px",fontWeight:700,cursor:"pointer",fontSize:13}}>📥 Download Report</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── New Report Modal with Map ── */}
+    {showNewReport&&<div style={{position:"fixed",inset:0,background:"rgba(10,25,50,.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setShowNewReport(false)}>
+      <div style={{background:P.card,borderRadius:18,padding:24,maxWidth:620,width:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(10,25,50,.2)",position:"relative"}} onClick={e=>e.stopPropagation()}>
+        <button onClick={()=>setShowNewReport(false)} style={{position:"absolute",top:14,right:14,background:"#f1f5f9",border:0,borderRadius:"50%",width:32,height:32,fontSize:18,cursor:"pointer",color:P.muted}}>×</button>
+        {submitted
+          ?<div style={{textAlign:"center",padding:"32px 0"}}>
+              <div style={{fontSize:52,marginBottom:12}}>✅</div>
+              <h3 style={{margin:"0 0 8px",color:P.navy,fontSize:20}}>Report Submitted!</h3>
+              <p style={{color:P.muted,fontSize:14}}>Your case has been created and is pending review.</p>
+            </div>
+          :<>
+            <h2 style={{margin:"0 0 4px",fontSize:18,fontWeight:900}}>+ New Report</h2>
+            <p style={{margin:"0 0 16px",color:P.muted,fontSize:13}}>Fill in the details and pin the location on the map.</p>
+            <div style={{background:"#fff8e7",border:`1px solid ${P.amber}`,borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:12}}><strong>⚠️ Emergency?</strong> Do not use this form — <strong>Call 911</strong></div>
+            <form onSubmit={handleSubmitNew}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Incident Type *</label>
+                  <select value={newForm.type} onChange={e=>setF('type',e.target.value)} required style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,background:P.card}}>
+                    <option value="">Select type</option>
+                    <option>Vehicle Incident</option><option>Property Crime</option>
+                    <option>Community Concern</option><option>Suspicious Activity</option>
+                    <option>Submit a Tip</option><option>Assault</option>
+                  </select></div>
+                <div><label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Location</label>
+                  <input value={newForm.location} onChange={e=>setF('location',e.target.value)} placeholder="Or click on map below" style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,boxSizing:"border-box"}}/></div>
+              </div>
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>📍 Pin Location on Map <span style={{fontWeight:400,textTransform:"none"}}>(click to place pin)</span></label>
+                <div style={{height:220,borderRadius:10,overflow:"hidden",border:`1px solid ${P.line}`}}>
+                  {mapReady&&MapComponents
+                    ?<MapComponents.MapContainer center={[newForm.lat,newForm.lng]} zoom={13} style={{height:"100%",width:"100%"}}>
+                        <MapComponents.TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                        <LocationPicker/>
+                        <MapComponents.Marker position={[newForm.lat,newForm.lng]}>
+                          <MapComponents.Popup>📍 Incident location</MapComponents.Popup>
+                        </MapComponents.Marker>
+                      </MapComponents.MapContainer>
+                    :<div style={{height:"100%",display:"grid",placeItems:"center",background:"#f8faff",color:P.muted,fontSize:13}}>🗺️ Loading map...</div>
+                  }
+                </div>
+                {newForm.lat!==40.9312&&<div style={{fontSize:11,color:P.green,marginTop:4,fontWeight:600}}>✅ Pin placed at {newForm.lat.toFixed(5)}, {newForm.lng.toFixed(5)}</div>}
+              </div>
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:4,textTransform:"uppercase"}}>Incident Details</label>
+                <textarea value={newForm.details} onChange={e=>setF('details',e.target.value)} rows={3} placeholder="Describe what happened, who was involved, any vehicle descriptions..." style={{width:"100%",padding:"9px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                <button type="submit" style={{flex:1,background:P.blue,color:"#fff",border:0,borderRadius:10,padding:"12px",fontWeight:800,fontSize:14,cursor:"pointer"}}>Submit Report</button>
+                <button type="button" onClick={()=>setShowNewReport(false)} style={{flex:1,background:"#eef4ff",color:"#174073",border:0,borderRadius:10,padding:"12px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Cancel</button>
+              </div>
+            </form>
+          </>
+        }
+      </div>
+    </div>}
+
+    {/* ── Main Page ── */}
     <div style={{background:`linear-gradient(135deg,${P.navy},#1565c0)`,color:"#fff",padding:"28px 24px 36px"}}>
-      <div style={{maxWidth:1100,margin:"0 auto"}}><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".1em",opacity:.78,marginBottom:5}}>City of Yonkers · Public Safety</div><h1 style={{margin:"0 0 6px",fontSize:22,fontWeight:900}}>Crime Reporting Dashboard</h1><p style={{margin:0,opacity:.82,fontSize:14}}>Track your submitted reports and stay informed about public safety in your area.</p></div>
+      <div style={{maxWidth:1100,margin:"0 auto"}}>
+        <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".1em",opacity:.78,marginBottom:5}}>City of Yonkers · Public Safety</div>
+        <h1 style={{margin:"0 0 6px",fontSize:22,fontWeight:900}}>Crime Reporting Dashboard</h1>
+        <p style={{margin:0,opacity:.82,fontSize:14}}>Track your submitted reports and stay informed about public safety in your area.</p>
+      </div>
     </div>
     <main style={{padding:"22px 24px",maxWidth:1100,margin:"0 auto"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12,marginBottom:20}}>
-        {[["My Reports","3","Total submitted"],["Open Cases","2","Currently active"],["Resolved","1","Closed this month"],["Avg Response","2.4d","For my cases"]].map(([l,v,h])=><div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+        {[["My Reports",cases.length,"Total submitted"],["Open Cases",cases.filter(c=>c.status!=="Resolved").length,"Currently active"],["Resolved",cases.filter(c=>c.status==="Resolved").length,"Closed this month"],["Avg Response","2.4d","For my cases"]].map(([l,v,h])=><div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
           <div style={{fontSize:11,color:P.muted,fontWeight:700,marginBottom:3}}>{l}</div>
           <div style={{fontSize:26,fontWeight:900,color:P.navy,margin:"5px 0 2px"}}>{v}</div>
           <div style={{fontSize:11,color:P.muted}}>{h}</div>
@@ -247,20 +749,21 @@ function PageDashboard(){
       <div style={{background:P.card,borderRadius:14,padding:20,boxShadow:"0 4px 12px rgba(15,35,63,.06)",marginBottom:18}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
           <h2 style={{margin:0,fontSize:16,fontWeight:800}}>My Submitted Reports</h2>
-          <button style={{background:P.blue,color:"#fff",border:0,borderRadius:9,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13}}>+ New Report</button>
+          <button onClick={()=>setShowNewReport(true)} style={{background:P.blue,color:"#fff",border:0,borderRadius:9,padding:"8px 16px",fontWeight:700,cursor:"pointer",fontSize:13}}>+ New Report</button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:11}}>
-          {cases.map(c=><div key={c.id} style={{border:`1px solid ${P.line}`,borderRadius:11,padding:15,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+          {cases.map(c=><div key={c.id} style={{border:`1px solid ${P.line}`,borderRadius:11,padding:15,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,transition:"background .2s"}} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
             <div>
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
                 <span style={{fontWeight:800,color:P.blue,fontSize:13}}>{c.id}</span>
                 <span style={{...sc[c.status],borderRadius:999,padding:"2px 9px",fontWeight:800,fontSize:11}}>{c.status}</span>
+                <span style={{...pc[c.priority]||{bg:"#eef4ff",cl:"#174073"},borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:11}}>{c.priority}</span>
               </div>
               <div style={{fontWeight:600,fontSize:14,marginBottom:2}}>{c.type}</div>
               <div style={{fontSize:12,color:P.muted}}>📍 {c.location} · {c.submitted}</div>
               <div style={{fontSize:12,color:P.muted,marginTop:2}}>💬 {c.update}</div>
             </div>
-            <button style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:9,padding:"8px 14px",fontWeight:700,fontSize:12,cursor:"pointer"}}>View Details</button>
+            <button onClick={()=>setSelectedCase(c)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:9,padding:"8px 14px",fontWeight:700,fontSize:12,cursor:"pointer"}}>View Details</button>
           </div>)}
         </div>
       </div>
@@ -522,7 +1025,7 @@ export default function App(){
   return<div style={{fontFamily:"Inter,Segoe UI,Arial,sans-serif",color:P.text,minHeight:"100vh"}}>
     <NavBar page={page} setPage={setPage} live={live}/>
     {page==="report"   &&<PageReportCrime onSubmit={()=>reload()}/>}
-    {page==="dashboard"&&<PageDashboard/>}
+    {page==="dashboard"&&<PageDashboard setPage={setPage}/>}
     {page==="analytics"&&<PageAnalytics data={data} live={live} loading={loading} reload={reload} filters={filters} setFilters={setFilters}/>}
     {page==="queue"    &&<PageManageQueue data={data} live={live}/>}
     {page==="admin"    &&<PageAdmin data={data} live={live}/>}
