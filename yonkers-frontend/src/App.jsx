@@ -5,6 +5,84 @@ import {
 } from "recharts";
 
 const P={navy:"#10233f",blue:"#1f6feb",cyan:"#1aa6b7",green:"#20a35b",amber:"#f2a900",red:"#d83b3b",purple:"#7c4dff",muted:"#64748b",line:"#d9e2ef",bg:"#f4f7fb",card:"#ffffff",text:"#1e293b"};
+
+// ── ADA: inject global accessibility CSS ─────────────────────────────────────
+const ADA_CSS=`
+  *:focus-visible { outline: 3px solid #1f6feb !important; outline-offset: 2px !important; border-radius: 4px; }
+  .skip-nav { position:absolute; top:-100px; left:16px; background:#10233f; color:#fff; padding:10px 18px; border-radius:6px; font-weight:700; font-size:14px; z-index:99999; text-decoration:none; transition:top 0.1s; }
+  .skip-nav:focus { top:16px; }
+  body.ada-high-contrast { filter: contrast(1.55) saturate(1.2) !important; }
+  body.ada-large-text { font-size: 118% !important; }
+  body.ada-large-text button, body.ada-large-text input, body.ada-large-text select, body.ada-large-text textarea { font-size: 1.05rem !important; }
+  body.ada-reduce-motion * { animation: none !important; transition: none !important; }
+  body.ada-dyslexia { font-family: Arial, Helvetica, sans-serif !important; letter-spacing: 0.06em !important; word-spacing: 0.18em !important; line-height: 1.8 !important; }
+  .ada-toolbar { position:fixed; bottom:24px; left:24px; z-index:9998; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .ada-toggle-btn { background:#10233f; color:#fff; border:none; border-radius:50%; width:48px; height:48px; font-size:22px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.22); display:grid; place-items:center; }
+  .ada-toggle-btn:hover { background:#1f6feb; }
+  .ada-panel { background:#fff; border:1.5px solid #d9e2ef; border-radius:14px; padding:16px; min-width:224px; box-shadow:0 8px 32px rgba(15,35,63,0.14); }
+  .ada-panel-title { font-size:12px; font-weight:800; color:#10233f; text-transform:uppercase; letter-spacing:.07em; margin-bottom:10px; }
+  .ada-option { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:13px; color:#1e293b; gap:10px; }
+  .ada-option:last-child { border-bottom:none; }
+  .ada-switch { width:38px; height:22px; border-radius:999px; border:none; background:#d9e2ef; cursor:pointer; position:relative; transition:background 0.2s; flex-shrink:0; }
+  .ada-switch.on { background:#1f6feb; }
+  .ada-switch::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left 0.2s; }
+  .ada-switch.on::after { left:19px; }
+  .ada-font-btn { background:#f1f5f9; border:1px solid #d9e2ef; border-radius:6px; width:28px; height:28px; cursor:pointer; font-weight:700; font-size:13px; display:grid; place-items:center; color:#1e293b; }
+  .ada-font-btn:hover { background:#e2e8f0; }
+`;
+
+function injectADAStyles(){
+  if(document.getElementById("ada-styles"))return;
+  const s=document.createElement("style");
+  s.id="ada-styles"; s.textContent=ADA_CSS;
+  document.head.appendChild(s);
+}
+
+function ADAToolbar(){
+  const[open,setOpen]=useState(false);
+  const[highContrast,setHighContrast]=useState(false);
+  const[largeText,setLargeText]=useState(false);
+  const[reduceMotion,setReduceMotion]=useState(false);
+  const[dyslexia,setDyslexia]=useState(false);
+  const[fontSize,setFontSize]=useState(100);
+  useEffect(()=>{ injectADAStyles(); },[]);
+  const toggle=(cls,val)=>{ val?document.body.classList.add(cls):document.body.classList.remove(cls); };
+  const toggleHC=()=>{ const v=!highContrast; setHighContrast(v); toggle("ada-high-contrast",v); };
+  const toggleLT=()=>{ const v=!largeText; setLargeText(v); toggle("ada-large-text",v); };
+  const toggleRM=()=>{ const v=!reduceMotion; setReduceMotion(v); toggle("ada-reduce-motion",v); };
+  const toggleDX=()=>{ const v=!dyslexia; setDyslexia(v); toggle("ada-dyslexia",v); };
+  const changeFS=(d)=>{ const n=Math.min(140,Math.max(80,fontSize+d)); setFontSize(n); document.documentElement.style.fontSize=n+"%"; };
+  const resetAll=()=>{
+    setHighContrast(false);setLargeText(false);setReduceMotion(false);setDyslexia(false);setFontSize(100);
+    ["ada-high-contrast","ada-large-text","ada-reduce-motion","ada-dyslexia"].forEach(c=>document.body.classList.remove(c));
+    document.documentElement.style.fontSize="100%"; setOpen(false);
+  };
+  const SW=({on,onToggle,label})=><button className={`ada-switch ${on?"on":""}`} role="switch" aria-checked={on} aria-label={label} onClick={onToggle}/>;
+  return(
+    <div className="ada-toolbar" role="region" aria-label="Accessibility options">
+      {open&&(
+        <div className="ada-panel" role="dialog" aria-label="Accessibility settings">
+          <div className="ada-panel-title">♿ Accessibility</div>
+          <div className="ada-option"><span>High contrast</span><SW on={highContrast} onToggle={toggleHC} label="Toggle high contrast"/></div>
+          <div className="ada-option"><span>Large text</span><SW on={largeText} onToggle={toggleLT} label="Toggle large text"/></div>
+          <div className="ada-option"><span>Reduce motion</span><SW on={reduceMotion} onToggle={toggleRM} label="Toggle reduce motion"/></div>
+          <div className="ada-option"><span>Dyslexia font</span><SW on={dyslexia} onToggle={toggleDX} label="Toggle dyslexia font"/></div>
+          <div className="ada-option">
+            <span>Font size</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}} role="group" aria-label="Font size">
+              <button className="ada-font-btn" onClick={()=>changeFS(-10)} aria-label="Decrease font size">A−</button>
+              <span style={{fontSize:11,fontWeight:600,color:"#64748b",minWidth:32,textAlign:"center"}} aria-live="polite">{fontSize}%</span>
+              <button className="ada-font-btn" onClick={()=>changeFS(10)} aria-label="Increase font size">A+</button>
+            </div>
+          </div>
+          <button onClick={resetAll} style={{marginTop:10,width:"100%",background:"#f1f5f9",border:"1px solid #d9e2ef",borderRadius:8,padding:"7px",fontSize:12,fontWeight:700,cursor:"pointer",color:"#475569"}} aria-label="Reset all accessibility settings">Reset all settings</button>
+        </div>
+      )}
+      <button className="ada-toggle-btn" onClick={()=>setOpen(o=>!o)} aria-expanded={open} aria-haspopup="dialog" aria-label={open?"Close accessibility menu":"Open accessibility menu"} title="Accessibility options">♿</button>
+    </div>
+  );
+}
+
 const CAT_COLORS=["#d83b3b","#f2a900","#1f6feb","#20a35b","#7c4dff","#1aa6b7","#e91e8c","#64748b"];
 const PRIO_COLORS={Critical:P.red,High:P.amber,Normal:P.blue,Low:P.green};
 const FUNNEL_COLORS=[P.blue,P.cyan,P.amber,P.green];
@@ -226,14 +304,14 @@ function AdminSidebar({activeItem,items,onNavigate}){
 // ── NavBar ─────────────────────────────────────────────────────────────────────
 function NavBar({page,setPage,live}){
   const pages=[{id:"report",label:"📝 Report Crime"},{id:"dashboard",label:"📊 My Dashboard"},{id:"analytics",label:"📈 Analytics"},{id:"queue",label:"📋 Manage Queue"},{id:"admin",label:"🔐 Admin"}];
-  return<nav style={{background:P.navy,color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.25)",gap:12,flexWrap:"wrap"}}>
+  return<nav aria-label="Main navigation" style={{background:P.navy,color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.25)",gap:12,flexWrap:"wrap"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <div style={{width:32,height:32,borderRadius:8,background:"#fff",color:P.navy,display:"grid",placeItems:"center",fontWeight:900,fontSize:15}}>Y</div>
+      <div role="img" aria-label="Yonkers Public Safety shield logo" style={{width:32,height:32,borderRadius:8,background:"#fff",color:P.navy,display:"grid",placeItems:"center",fontWeight:900,fontSize:15}}>Y</div>
       <span style={{fontWeight:800,fontSize:14,whiteSpace:"nowrap"}}>Yonkers Public Safety</span>
     </div>
-    <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
-      {pages.map(p=><button key={p.id} onClick={()=>setPage(p.id)} style={{background:page===p.id?"rgba(255,255,255,.17)":"transparent",color:"#fff",border:page===p.id?"1px solid rgba(255,255,255,.28)":"1px solid transparent",borderRadius:8,padding:"5px 11px",fontWeight:page===p.id?700:500,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{p.label}</button>)}
-      <span style={{marginLeft:6,background:"rgba(255,255,255,.11)",borderRadius:999,padding:"3px 10px",fontSize:11}}>{live?"🟢 Live":"🟡 Demo"}</span>
+    <div role="menubar" aria-label="Page navigation" style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
+      {pages.map(p=><button key={p.id} role="menuitem" aria-current={page===p.id?"page":undefined} onClick={()=>setPage(p.id)} style={{background:page===p.id?"rgba(255,255,255,.17)":"transparent",color:"#fff",border:page===p.id?"1px solid rgba(255,255,255,.28)":"1px solid transparent",borderRadius:8,padding:"5px 11px",fontWeight:page===p.id?700:500,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{p.label}</button>)}
+      <span aria-live="polite" aria-label={live?"Live data":"Demo mode"} style={{marginLeft:6,background:"rgba(255,255,255,.11)",borderRadius:999,padding:"3px 10px",fontSize:11}}>{live?"🟢 Live":"🟡 Demo"}</span>
     </div>
   </nav>;
 }
@@ -948,69 +1026,303 @@ function PageManageQueue({data}){
 }
 
 // ── PAGE 5: Admin Dashboard ────────────────────────────────────────────────────
-function PageAdmin({data}){
+function PageAdmin({data,live}){
+  const UNITS=["Patrol Desk","Field Unit A","Field Unit B","Field Unit C","Investigations","Special Ops","K9 Unit","Traffic Division"];
+  const SEED_QUEUE=[
+    {id:"YR-2026-1048",category:"Suspicious Activity",location:"Getty Square",priority:"Critical",status:"Needs Review",team:"Patrol Desk",sla:"18 min left",evidence:true},
+    {id:"YR-2026-1039",category:"Vehicle Break-in",location:"Park Hill",priority:"High",status:"Assigned",team:"Field Unit B",sla:"42 min left",evidence:false},
+    {id:"YR-2026-1021",category:"Vandalism",location:"Nodine Hill",priority:"High",status:"Evidence Review",team:"Investigations",sla:"1h 12m left",evidence:true},
+    {id:"YR-2026-0998",category:"Theft",location:"McLean Ave",priority:"Critical",status:"Needs Review",team:"Field Unit A",sla:"5 min left",evidence:false},
+    {id:"YR-2026-0991",category:"Assault",location:"Getty Square",priority:"High",status:"Assigned",team:"Special Ops",sla:"29 min left",evidence:true},
+    {id:"YR-2026-0984",category:"Property Crime",location:"Waterfront",priority:"High",status:"Needs Review",team:"Unassigned",sla:"55 min left",evidence:false},
+    {id:"YR-2026-0977",category:"Community Concern",location:"Yonkers Ave",priority:"Normal",status:"Assigned",team:"Field Unit C",sla:"2h 5m left",evidence:false},
+    {id:"YR-2026-0965",category:"Suspicious Activity",location:"Park Hill",priority:"High",status:"Evidence Review",team:"Investigations",sla:"1h 30m left",evidence:true},
+  ];
+  const AUDIT_SEED=[
+    {time:"10:42 AM",user:"Admin",action:"Escalated YR-2026-0998 to Critical"},
+    {time:"10:38 AM",user:"Dispatch",action:"Assigned YR-2026-1039 to Field Unit B"},
+    {time:"10:21 AM",user:"Admin",action:"Closed YR-2026-0943 — resolved"},
+    {time:"09:55 AM",user:"System",action:"Auto-escalated YR-2026-1021 — SLA breach warning"},
+    {time:"09:33 AM",user:"Dispatch",action:"Reassigned YR-2026-0991 to Special Ops"},
+  ];
+
+  const[activeSection,setActiveSection]=useState("System Dashboard");
   const[search,setSearch]=useState("");
-  const queue=data.queue||[];
-  const sideItems=[["● System Dashboard",true],["Queue Management",false],["Submitted Reports",false],["Dispatch / Assignment",false],["Evidence Review",false],["Analytics",false],["Users & Roles",false],["Audit Log",false]].map(([l])=>[l,""]); // flatten for AdminSidebar
-  const adminMetrics=[{label:"New Reports",value:"38",trend:"12 require initial review",cl:P.text},{label:"High Priority",value:"9",trend:"3 critical / active risk",cl:P.red},{label:"Avg. First Response",value:"06m",trend:"Target under 10 minutes",cl:P.green},{label:"Queue Backlog",value:"17",trend:"Down 8% from yesterday",cl:P.amber}];
+  const[queueRows,setQueueRows]=useState(SEED_QUEUE);
+  const[selected,setSelected]=useState(null);
+  const[assignModal,setAssignModal]=useState(null);
+  const[assignTo,setAssignTo]=useState("");
+  const[escalateModal,setEscalateModal]=useState(null);
+  const[emergencyModal,setEmergencyModal]=useState(false);
+  const[exportDone,setExportDone]=useState(false);
+  const[toast,setToast]=useState(null);
+  const[auditLog,setAuditLog]=useState(AUDIT_SEED);
+  const[filterPriority,setFilterPriority]=useState("All");
+  const[filterStatus,setFilterStatus]=useState("All");
+  const[usersOnline]=useState(["Dispatch #1","Officer Carter","Officer Lopez","Sgt. Rivera","K9 Handler"]);
+
+  const showToast=(msg,color=P.green)=>{setToast({msg,color});setTimeout(()=>setToast(null),3000);};
+  const addAudit=(action)=>setAuditLog(l=>[{time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),user:"Admin",action},...l].slice(0,20));
+
+  const doAssign=()=>{
+    if(!assignTo)return;
+    setQueueRows(rows=>rows.map(r=>r.id===assignModal.id?{...r,team:assignTo,status:"Assigned"}:r));
+    addAudit(`Assigned ${assignModal.id} to ${assignTo}`);
+    showToast(`✅ ${assignModal.id} assigned to ${assignTo}`);
+    setAssignModal(null);setAssignTo("");
+  };
+  const doEscalate=(row)=>{
+    setQueueRows(rows=>rows.map(r=>r.id===row.id?{...r,priority:"Critical",status:"Needs Review"}:r));
+    addAudit(`Escalated ${row.id} to Critical`);
+    showToast(`🚨 ${row.id} escalated to Critical`,P.red);
+    setEscalateModal(null);
+  };
+  const doClose=(id)=>{
+    setQueueRows(rows=>rows.filter(r=>r.id!==id));
+    addAudit(`Closed case ${id} — resolved`);
+    showToast(`✅ Case ${id} closed`);
+    setSelected(null);
+  };
+  const doExport=()=>{
+    const csv=["Case,Category,Location,Priority,Status,Team,SLA",...queueRows.map(r=>`${r.id},${r.category},${r.location},${r.priority},${r.status},${r.team},${r.sla}`)].join("\n");
+    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download="yonkers_queue_export.csv";a.click();
+    setExportDone(true);showToast("📥 Queue exported as CSV");setTimeout(()=>setExportDone(false),3000);
+  };
+
+  const filtered=queueRows.filter(r=>{
+    const matchSearch=!search||(r.id+r.category+r.location).toLowerCase().includes(search.toLowerCase());
+    const matchP=filterPriority==="All"||r.priority===filterPriority;
+    const matchS=filterStatus==="All"||r.status===filterStatus;
+    return matchSearch&&matchP&&matchS;
+  });
+
+  const criticalCount=queueRows.filter(r=>r.priority==="Critical").length;
+  const highCount=queueRows.filter(r=>r.priority==="High").length;
+  const unassigned=queueRows.filter(r=>r.team==="Unassigned").length;
+  const evidenceCount=queueRows.filter(r=>r.evidence).length;
+
+  const NAV=[["System Dashboard","📊"],["Queue Management","📋"],["Submitted Reports","📁"],["Dispatch / Assignment","🚔"],["Evidence Review","🔍"],["Analytics","📈"],["Users & Roles","👥"],["Audit Log","📜"]];
+
+  const slaColor=(sla)=>{
+    if(!sla)return P.muted;
+    if(sla.includes("5 min")||sla.includes("4 min")||sla.includes("3 min")||sla.includes("2 min")||sla.includes("1 min"))return P.red;
+    if(sla.includes("18 min")||sla.includes("29 min"))return P.amber;
+    return P.muted;
+  };
+
   return<div style={{display:"flex",minHeight:"100vh",background:P.bg}}>
-    <aside style={{width:208,background:"#0f1f38",color:"#fff",padding:"20px 0",flexShrink:0,minHeight:"100vh"}}>
-      <div style={{padding:"0 15px 16px",borderBottom:"1px solid rgba(255,255,255,.1)",display:"flex",alignItems:"center",gap:9}}>
-        <div style={{width:32,height:32,borderRadius:8,background:"#fff",color:P.navy,display:"grid",placeItems:"center",fontWeight:900,fontSize:14,flexShrink:0}}>Y</div>
-        <div><div style={{fontSize:11,fontWeight:800}}>City of Yonkers</div><div style={{fontSize:10,opacity:.65}}>Public Safety Admin</div></div>
+
+    {/* ── Toast ── */}
+    {toast&&<div style={{position:"fixed",bottom:24,right:24,background:toast.color,color:"#fff",borderRadius:10,padding:"12px 20px",fontWeight:700,fontSize:13,zIndex:9999,boxShadow:"0 8px 24px rgba(0,0,0,.2)",animation:"fadein .3s"}}>{toast.msg}</div>}
+
+    {/* ── Review Modal ── */}
+    {selected&&<div style={{position:"fixed",inset:0,background:"rgba(10,25,50,.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSelected(null)}>
+      <div style={{background:P.card,borderRadius:18,padding:28,maxWidth:520,width:"100%",boxShadow:"0 24px 64px rgba(10,25,50,.2)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <span style={{fontWeight:900,color:P.blue,fontSize:16}}>{selected.id}</span>
+          <button onClick={()=>setSelected(null)} style={{background:"#f1f5f9",border:0,borderRadius:"50%",width:32,height:32,fontSize:18,cursor:"pointer"}}>×</button>
+        </div>
+        <h2 style={{margin:"0 0 14px",fontSize:18,fontWeight:900,color:P.navy}}>{selected.category}</h2>
+        {[["📍 Location",selected.location],["🚨 Priority",selected.priority],["📋 Status",selected.status],["👮 Assigned To",selected.team],["⏱ SLA",selected.sla],["📎 Evidence",selected.evidence?"Attached":"None"]].map(([l,v])=>(
+          <div key={l} style={{display:"flex",gap:12,padding:"8px 0",borderBottom:`1px solid ${P.line}`}}>
+            <span style={{fontSize:12,fontWeight:700,color:P.muted,minWidth:130}}>{l}</span>
+            <span style={{fontSize:13,color:P.text,fontWeight:500}}>{v}</span>
+          </div>
+        ))}
+        <div style={{display:"flex",gap:8,marginTop:18,flexWrap:"wrap"}}>
+          <button onClick={()=>{setAssignModal(selected);setSelected(null);}} style={{flex:1,background:"#eef4ff",color:"#174073",border:0,borderRadius:9,padding:"10px",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔄 Reassign</button>
+          <button onClick={()=>{setEscalateModal(selected);setSelected(null);}} style={{flex:1,background:"#fff2cc",color:"#925a00",border:0,borderRadius:9,padding:"10px",fontWeight:700,fontSize:13,cursor:"pointer"}}>⬆ Escalate</button>
+          <button onClick={()=>doClose(selected.id)} style={{flex:1,background:"#e8f6ee",color:"#146c3e",border:0,borderRadius:9,padding:"10px",fontWeight:700,fontSize:13,cursor:"pointer"}}>✅ Close Case</button>
+        </div>
       </div>
-      <nav style={{padding:"10px 0"}}>
-        {[["● System Dashboard",true],["Queue Management",false],["Submitted Reports",false],["Dispatch / Assignment",false],["Evidence Review",false],["Analytics",false],["Users & Roles",false],["Audit Log",false]].map(([l,active])=><div key={l} style={{padding:"8px 15px",fontSize:12,fontWeight:active?700:400,background:active?"rgba(255,255,255,.12)":"transparent",color:active?"#fff":"rgba(255,255,255,.65)",cursor:"pointer",borderLeft:active?`3px solid ${P.blue}`:"3px solid transparent"}}>{l}</div>)}
+    </div>}
+
+    {/* ── Assign Modal ── */}
+    {assignModal&&<div style={{position:"fixed",inset:0,background:"rgba(10,25,50,.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setAssignModal(null)}>
+      <div style={{background:P.card,borderRadius:18,padding:28,maxWidth:400,width:"100%",boxShadow:"0 24px 64px rgba(10,25,50,.2)"}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{margin:"0 0 4px",fontSize:17,fontWeight:900}}>Assign Case</h3>
+        <p style={{margin:"0 0 16px",color:P.muted,fontSize:13}}>{assignModal.id} — {assignModal.category}</p>
+        <label style={{fontSize:11,fontWeight:700,color:P.muted,display:"block",marginBottom:6,textTransform:"uppercase"}}>Assign to unit</label>
+        <select value={assignTo} onChange={e=>setAssignTo(e.target.value)} style={{width:"100%",padding:"10px 12px",border:`1px solid ${P.line}`,borderRadius:9,fontSize:14,marginBottom:16,background:P.card}}>
+          <option value="">Select unit…</option>
+          {UNITS.map(u=><option key={u}>{u}</option>)}
+        </select>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={doAssign} style={{flex:1,background:P.blue,color:"#fff",border:0,borderRadius:9,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Confirm Assignment</button>
+          <button onClick={()=>setAssignModal(null)} style={{flex:1,background:"#f1f5f9",color:P.text,border:0,borderRadius:9,padding:"11px",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── Escalate Modal ── */}
+    {escalateModal&&<div style={{position:"fixed",inset:0,background:"rgba(10,25,50,.55)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setEscalateModal(null)}>
+      <div style={{background:P.card,borderRadius:18,padding:28,maxWidth:400,width:"100%",boxShadow:"0 24px 64px rgba(10,25,50,.2)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:36,marginBottom:12,textAlign:"center"}}>🚨</div>
+        <h3 style={{margin:"0 0 8px",fontSize:17,fontWeight:900,textAlign:"center"}}>Escalate to Critical?</h3>
+        <p style={{margin:"0 0 20px",color:P.muted,fontSize:13,textAlign:"center"}}>{escalateModal.id} — {escalateModal.category} at {escalateModal.location}</p>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>doEscalate(escalateModal)} style={{flex:1,background:P.red,color:"#fff",border:0,borderRadius:9,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Yes, Escalate</button>
+          <button onClick={()=>setEscalateModal(null)} style={{flex:1,background:"#f1f5f9",color:P.text,border:0,borderRadius:9,padding:"11px",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── Emergency Modal ── */}
+    {emergencyModal&&<div style={{position:"fixed",inset:0,background:"rgba(80,0,0,.7)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setEmergencyModal(false)}>
+      <div style={{background:P.card,borderRadius:18,padding:32,maxWidth:440,width:"100%",boxShadow:"0 24px 64px rgba(0,0,0,.4)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:48,marginBottom:14}}>🚨</div>
+        <h2 style={{margin:"0 0 10px",fontSize:20,fontWeight:900,color:P.red}}>Emergency Escalation</h2>
+        <p style={{color:P.muted,marginBottom:20,fontSize:13,lineHeight:1.6}}>This will immediately notify all available units, escalate all Critical cases, and alert the duty supervisor. This action is logged.</p>
+        <div style={{background:"#ffe7e7",borderRadius:10,padding:"11px 14px",marginBottom:20,fontSize:12,color:"#7a1a1a",fontWeight:600}}>⚠️ All {criticalCount} Critical cases will be broadcast to active units.</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{
+            setQueueRows(rows=>rows.map(r=>({...r,status:r.priority==="Critical"?"Dispatched":r.status})));
+            addAudit("EMERGENCY ESCALATION triggered — all critical cases dispatched");
+            showToast("🚨 Emergency escalation sent to all units",P.red);
+            setEmergencyModal(false);
+          }} style={{flex:1,background:P.red,color:"#fff",border:0,borderRadius:9,padding:"12px",fontWeight:800,fontSize:14,cursor:"pointer"}}>🚨 Confirm Escalation</button>
+          <button onClick={()=>setEmergencyModal(false)} style={{flex:1,background:"#f1f5f9",color:P.text,border:0,borderRadius:9,padding:"12px",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── Sidebar ── */}
+    <aside style={{width:212,background:"#0f1f38",color:"#fff",flexShrink:0,minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"16px 14px",borderBottom:"1px solid rgba(255,255,255,.1)",display:"flex",alignItems:"center",gap:9}}>
+        <svg width="30" height="34" viewBox="0 0 30 34" fill="none"><path d="M15 1L2 6.5V16C2 23 8 29.5 15 32C22 29.5 28 23 28 16V6.5L15 1Z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2"/><text x="15" y="21" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">Y</text></svg>
+        <div><div style={{fontSize:11,fontWeight:800}}>City of Yonkers</div><div style={{fontSize:10,opacity:.6}}>Public Safety Admin</div></div>
+      </div>
+      <nav style={{padding:"8px 0",flex:1}}>
+        {NAV.map(([l,icon])=><div key={l} onClick={()=>setActiveSection(l)} style={{padding:"9px 14px",fontSize:12,fontWeight:activeSection===l?700:400,background:activeSection===l?"rgba(255,255,255,.12)":"transparent",color:activeSection===l?"#fff":"rgba(255,255,255,.6)",cursor:"pointer",borderLeft:activeSection===l?`3px solid ${P.blue}`:"3px solid transparent",display:"flex",alignItems:"center",gap:8,transition:"all .15s"}}>
+          <span style={{fontSize:14}}>{icon}</span>{l}
+        </div>)}
       </nav>
-      <div style={{margin:"14px 11px",background:"rgba(255,255,255,.08)",borderRadius:9,padding:"11px 13px",fontSize:11,lineHeight:1.5}}><strong style={{display:"block",marginBottom:3}}>Admin Mode</strong><span style={{opacity:.75}}>Viewing live sample queue for submitted crime and safety reports.</span></div>
+      <div style={{margin:"0 10px 14px",background:"rgba(255,255,255,.07)",borderRadius:9,padding:"10px 12px"}}>
+        <div style={{fontSize:10,fontWeight:700,opacity:.7,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>Online Now</div>
+        {usersOnline.map(u=><div key={u} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,fontSize:11,opacity:.8}}><span style={{width:6,height:6,borderRadius:"50%",background:"#4ade80",flexShrink:0}}></span>{u}</div>)}
+      </div>
     </aside>
-    <main style={{flex:1,overflow:"auto"}}>
-      <div style={{background:P.card,borderBottom:`1px solid ${P.line}`,padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <div><h2 style={{margin:0,fontSize:17,fontWeight:900}}>System Admin Dashboard</h2><p style={{margin:"2px 0 0",fontSize:12,color:P.muted}}>High-priority reported issues, queue control, assignment, and case review.</p></div>
+
+    {/* ── Main ── */}
+    <main style={{flex:1,overflow:"auto",display:"flex",flexDirection:"column"}}>
+
+      {/* Top bar */}
+      <div style={{background:P.card,borderBottom:`1px solid ${P.line}`,padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:10}}>
+        <div>
+          <h2 style={{margin:0,fontSize:16,fontWeight:900}}>{activeSection}</h2>
+          <p style={{margin:"1px 0 0",fontSize:11,color:P.muted}}>High-priority reported issues, queue control, assignment, and case review.</p>
+        </div>
         <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search case ID, address…" style={{padding:"7px 11px",border:`1px solid ${P.line}`,borderRadius:8,fontSize:13,width:200}}/>
-          <Btn color="light">Export</Btn><Btn color="blue">Manage Queue</Btn><Btn color="red">🚨 Emergency Escalation</Btn>
+          <button onClick={doExport} style={{background:exportDone?"#e8f6ee":P.card,color:exportDone?"#146c3e":P.text,border:`1px solid ${P.line}`,borderRadius:8,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer"}}>{exportDone?"✅ Exported":"📥 Export CSV"}</button>
+          <button onClick={()=>setEmergencyModal(true)} style={{background:P.red,color:"#fff",border:0,borderRadius:8,padding:"7px 14px",fontWeight:700,fontSize:12,cursor:"pointer"}}>🚨 Emergency Escalation</button>
         </div>
       </div>
-      <div style={{padding:"18px 20px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:12,marginBottom:20}}>
-          {adminMetrics.map(m=><div key={m.label} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"15px 17px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
-            <div style={{fontSize:11,color:P.muted,fontWeight:700,marginBottom:3,textTransform:"uppercase"}}>{m.label}</div>
-            <div style={{fontSize:28,fontWeight:900,color:m.cl,margin:"5px 0 2px"}}>{m.value}</div>
-            <div style={{fontSize:11,color:P.muted}}>{m.trend}</div>
-          </div>)}
+
+      <div style={{padding:"16px 20px",flex:1}}>
+
+        {/* KPI cards */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:18}}>
+          {[
+            {label:"New Reports",value:queueRows.length,trend:`${unassigned} require initial review`,cl:P.text},
+            {label:"High Priority",value:criticalCount+highCount,trend:`${criticalCount} critical / active risk`,cl:P.red},
+            {label:"Avg. First Response",value:"06m",trend:"Target under 10 minutes",cl:P.green},
+            {label:"Queue Backlog",value:queueRows.filter(r=>r.status==="Needs Review").length,trend:"Down 8% from yesterday",cl:P.amber},
+          ].map(m=>(
+            <div key={m.label} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"15px 17px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <div style={{fontSize:10,color:P.muted,fontWeight:700,marginBottom:3,textTransform:"uppercase",letterSpacing:".06em"}}>{m.label}</div>
+              <div style={{fontSize:28,fontWeight:900,color:m.cl,margin:"4px 0 2px"}}>{m.value}</div>
+              <div style={{fontSize:11,color:P.muted}}>{m.trend}</div>
+            </div>
+          ))}
         </div>
-        <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)",marginBottom:18}}>
-          <div style={{padding:"13px 18px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+
+        {/* Priority queue table */}
+        <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)",marginBottom:16}}>
+          <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
             <h3 style={{margin:0,fontSize:14,fontWeight:800}}>Priority Report Queue</h3>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[["Critical","#ffe7e7","#b42323"],["High","#fff2cc","#925a00"],["Unassigned","#f1f5f9","#475569"],["Evidence Attached","#eef4ff","#174073"]].map(([l,bg,cl])=><span key={l} style={{background:bg,color:cl,borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:11}}>{l}</span>)}
+            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+              <select value={filterPriority} onChange={e=>setFilterPriority(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
+                <option>All</option><option>Critical</option><option>High</option><option>Normal</option>
+              </select>
+              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
+                <option>All</option><option>Needs Review</option><option>Assigned</option><option>Evidence Review</option><option>Dispatched</option>
+              </select>
+              {[["Critical","#ffe7e7","#b42323"],["High","#fff2cc","#925a00"],["Unassigned","#f1f5f9","#475569"],["Evidence Attached","#eef4ff","#174073"]].map(([l,bg,cl])=>(
+                <span key={l} style={{background:bg,color:cl,borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:10}}>{l}: {l==="Critical"?criticalCount:l==="High"?highCount:l==="Unassigned"?unassigned:evidenceCount}</span>
+              ))}
             </div>
           </div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"#f8faff"}}>{["Case","Issue","Location","Priority","Status","Assigned To","SLA","Action"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-              <tbody>{queue.filter(r=>r.priority==="Critical"||r.priority==="High").filter(r=>!search||(r.id+r.category+r.location).toLowerCase().includes(search.toLowerCase())).map(r=><tr key={r.id} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,whiteSpace:"nowrap"}}>{r.id}</td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}</td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.team}</td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:(r.sla||"").includes("5 min")?P.red:P.muted,fontWeight:600,whiteSpace:"nowrap"}}>{r.sla||"—"}</td>
-                <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><div style={{display:"flex",gap:5}}>
-                  <button style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:7,padding:"5px 10px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Review</button>
-                  <button style={{background:"#fff2cc",color:"#925a00",border:0,borderRadius:7,padding:"5px 10px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Escalate</button>
-                </div></td>
-              </tr>)}</tbody>
+              <thead><tr style={{background:"#f8faff"}}>
+                {["Case","Issue","Location","Priority","Status","Assigned To","SLA","Action"].map(h=>(
+                  <th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:".05em"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filtered.map(r=>(
+                  <tr key={r.id} style={{cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,whiteSpace:"nowrap"}} onClick={()=>setSelected(r)}>{r.id}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}{r.evidence&&<span style={{marginLeft:6,fontSize:10,background:"#eef4ff",color:"#174073",borderRadius:4,padding:"1px 5px"}}>📎</span>}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:r.team==="Unassigned"?P.red:P.text,fontWeight:r.team==="Unassigned"?700:400}}>{r.team}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:slaColor(r.sla),fontWeight:600,whiteSpace:"nowrap"}}>{r.sla||"—"}</td>
+                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>
+                      <div style={{display:"flex",gap:5}}>
+                        <button onClick={()=>setSelected(r)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Review</button>
+                        <button onClick={()=>setAssignModal(r)} style={{background:"#e8f6ee",color:"#146c3e",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Assign</button>
+                        <button onClick={()=>setEscalateModal(r)} style={{background:"#fff2cc",color:"#925a00",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Escalate</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length===0&&<tr><td colSpan={8} style={{padding:"24px",textAlign:"center",color:P.muted,fontSize:13}}>No cases match your filters.</td></tr>}
+              </tbody>
             </table>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-          {[["CAD / RMS","Connected","#e8f6ee","#146c3e"],["GIS Map Service","Active","#e8f6ee","#146c3e"],["Notification Service","Active","#e8f6ee","#146c3e"],["Evidence Storage","85% capacity","#fff2cc","#925a00"],["API Gateway","Healthy","#e8f6ee","#146c3e"],["Audit Logger","Running","#e8f6ee","#146c3e"]].map(([name,status,bg,cl])=><div key={name} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:11,padding:"13px 15px",boxShadow:"0 3px 10px rgba(15,35,63,.05)"}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{name}</div>
-            <span style={{background:bg,color:cl,borderRadius:999,padding:"2px 9px",fontWeight:800,fontSize:11}}>{status}</span>
-          </div>)}
+
+        {/* Bottom row: system status + audit log */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:14}}>
+          {/* System status */}
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>System Status</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              {[
+                {name:"CAD / RMS",status:"Connected",bg:"#e8f6ee",cl:"#146c3e",icon:"🔗"},
+                {name:"GIS Map Service",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🗺️"},
+                {name:"Notification Service",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🔔"},
+                {name:"Evidence Storage",status:"85% capacity",bg:"#fff2cc",cl:"#925a00",icon:"💾"},
+                {name:"API Gateway",status:"Healthy",bg:"#e8f6ee",cl:"#146c3e",icon:"⚙️"},
+                {name:"Audit Logger",status:"Running",bg:"#e8f6ee",cl:"#146c3e",icon:"📜"},
+              ].map(s=>(
+                <div key={s.name} style={{border:`1px solid ${P.line}`,borderRadius:10,padding:"12px 13px"}}>
+                  <div style={{fontSize:18,marginBottom:6}}>{s.icon}</div>
+                  <div style={{fontSize:12,fontWeight:700,marginBottom:5,color:P.text}}>{s.name}</div>
+                  <span style={{background:s.bg,color:s.cl,borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:10}}>{s.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Audit log */}
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Audit Log</h3>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>
+              {auditLog.map((a,i)=>(
+                <div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderBottom:`1px solid ${P.line}`,alignItems:"flex-start"}}>
+                  <span style={{fontSize:10,color:P.muted,whiteSpace:"nowrap",marginTop:1,minWidth:60}}>{a.time}</span>
+                  <div>
+                    <span style={{fontSize:10,fontWeight:700,color:P.blue,marginRight:4}}>{a.user}</span>
+                    <span style={{fontSize:11,color:P.text}}>{a.action}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -1023,11 +1335,17 @@ export default function App(){
   const[filters,setFilters]=useState({days:"30",precinct:"All",channel:"All",priority:"All"});
   const{data,live,loading,reload}=useData(filters);
   return<div style={{fontFamily:"Inter,Segoe UI,Arial,sans-serif",color:P.text,minHeight:"100vh"}}>
+    {/* Skip nav — WCAG 2.4.1 */}
+    <a href="#main-content" className="skip-nav">Skip to main content</a>
     <NavBar page={page} setPage={setPage} live={live}/>
-    {page==="report"   &&<PageReportCrime onSubmit={()=>reload()}/>}
-    {page==="dashboard"&&<PageDashboard setPage={setPage}/>}
-    {page==="analytics"&&<PageAnalytics data={data} live={live} loading={loading} reload={reload} filters={filters} setFilters={setFilters}/>}
-    {page==="queue"    &&<PageManageQueue data={data} live={live}/>}
-    {page==="admin"    &&<PageAdmin data={data} live={live}/>}
+    <main id="main-content" tabIndex={-1} style={{outline:"none"}}>
+      {page==="report"   &&<PageReportCrime onSubmit={()=>reload()}/>}
+      {page==="dashboard"&&<PageDashboard setPage={setPage}/>}
+      {page==="analytics"&&<PageAnalytics data={data} live={live} loading={loading} reload={reload} filters={filters} setFilters={setFilters}/>}
+      {page==="queue"    &&<PageManageQueue data={data} live={live}/>}
+      {page==="admin"    &&<PageAdmin data={data} live={live}/>}
+    </main>
+    {/* ADA Accessibility Toolbar */}
+    <ADAToolbar/>
   </div>;
 }
