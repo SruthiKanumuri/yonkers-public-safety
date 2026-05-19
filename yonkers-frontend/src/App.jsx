@@ -302,16 +302,121 @@ function AdminSidebar({activeItem,items,onNavigate}){
 }
 
 // ── NavBar ─────────────────────────────────────────────────────────────────────
-function NavBar({page,setPage,live}){
-  const pages=[{id:"report",label:"📝 Report Crime"},{id:"dashboard",label:"📊 My Dashboard"},{id:"analytics",label:"📈 Analytics"},{id:"queue",label:"📋 Manage Queue"},{id:"admin",label:"🔐 Admin"}];
+// ── PAGE 0: Demo Login ────────────────────────────────────────────────────────
+function PageLogin({onLogin}){
+  const ROLES=[
+    {key:"citizen",label:"Citizen",icon:"🧑",desc:"Report incidents & track your cases",email:"citizen@yonkers.gov",pass:"demo1234",color:P.blue,landing:"report"},
+    {key:"admin",label:"Admin",icon:"🔐",desc:"Full system access & dispatch controls",email:"admin@yonkers.gov",pass:"admin5678",color:P.navy,landing:"admin"},
+  ];
+  const[role,setRole]=useState("citizen");
+  const[email,setEmail]=useState("citizen@yonkers.gov");
+  const[pass,setPass]=useState("demo1234");
+  const[showPass,setShowPass]=useState(false);
+  const[loading,setLoading]=useState(false);
+  const[error,setError]=useState("");
+  const selectRole=(r)=>{setRole(r.key);setEmail(r.email);setPass(r.pass);setError("");};
+  const handleLogin=(e)=>{
+    e.preventDefault();setError("");
+    const matched=ROLES.find(r=>r.email===email&&r.pass===pass);
+    if(!matched){setError("Invalid credentials. Use Auto-fill for demo access.");return;}
+    setLoading(true);
+    setTimeout(()=>{setLoading(false);onLogin(matched.key,matched.landing);},900);
+  };
+  const activeRole=ROLES.find(r=>r.key===role);
+  return(
+    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${P.navy} 0%,#1565c0 60%,#1aa6b7 100%)`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-120,right:-120,width:400,height:400,borderRadius:"50%",background:"rgba(255,255,255,.04)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:-80,left:-80,width:300,height:300,borderRadius:"50%",background:"rgba(255,255,255,.04)",pointerEvents:"none"}}/>
+      <div style={{textAlign:"center",marginBottom:28,color:"#fff"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+          <svg width="56" height="64" viewBox="0 0 56 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M28 3L4 13V32C4 46 14 58 28 62C42 58 52 46 52 32V13L28 3Z" fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5"/>
+            <path d="M28 11L11 18.5V32C11 42.5 18.5 52 28 55.5C37.5 52 45 42.5 45 32V18.5L28 11Z" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.3)" strokeWidth="1"/>
+            <text x="28" y="38" textAnchor="middle" fill="white" fontSize="20" fontWeight="bold" fontFamily="Arial,sans-serif">Y</text>
+          </svg>
+        </div>
+        <h1 style={{margin:"0 0 6px",fontSize:24,fontWeight:900,letterSpacing:"-.01em"}}>Yonkers Public Safety</h1>
+        <p style={{margin:0,opacity:.8,fontSize:14}}>Integrated Crime Reporting & Community Response</p>
+      </div>
+      <div style={{background:P.card,borderRadius:20,padding:28,width:"100%",maxWidth:420,boxShadow:"0 24px 64px rgba(0,0,0,.25)"}}>
+        <div style={{marginBottom:20}}>
+          <label style={{display:"block",fontSize:11,fontWeight:700,color:P.muted,textTransform:"uppercase",letterSpacing:".07em",marginBottom:8}}>Sign in as</label>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {ROLES.map(r=>(
+              <button key={r.key} type="button" onClick={()=>selectRole(r)}
+                style={{border:`2px solid ${role===r.key?r.color:P.line}`,background:role===r.key?"#eef4ff":"#f8faff",borderRadius:11,padding:"12px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
+                aria-pressed={role===r.key}>
+                <div style={{fontSize:22,marginBottom:4}}>{r.icon}</div>
+                <div style={{fontSize:13,fontWeight:700,color:role===r.key?r.color:P.text}}>{r.label}</div>
+                <div style={{fontSize:10,color:P.muted,lineHeight:1.4,marginTop:2}}>{r.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{background:"#f0f9ff",border:"1px solid #bae0fd",borderRadius:10,padding:"10px 13px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#0369a1",marginBottom:2}}>🎯 Demo credentials</div>
+            <div style={{fontSize:11,color:P.muted}}>{activeRole?.email} / {activeRole?.pass}</div>
+          </div>
+          <button type="button" onClick={()=>{setEmail(activeRole.email);setPass(activeRole.pass);setError("");}}
+            style={{background:"#0369a1",color:"#fff",border:0,borderRadius:7,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>
+            Auto-fill ↗
+          </button>
+        </div>
+        <form onSubmit={handleLogin}>
+          <div style={{marginBottom:12}}>
+            <label htmlFor="login-email" style={{display:"block",fontSize:11,fontWeight:700,color:P.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Email address</label>
+            <input id="login-email" type="email" value={email} onChange={e=>setEmail(e.target.value)} required autoComplete="email"
+              style={{width:"100%",padding:"10px 12px",border:`1.5px solid ${error?P.red:P.line}`,borderRadius:9,fontSize:14,boxSizing:"border-box"}}
+              aria-describedby={error?"login-error":undefined}/>
+          </div>
+          <div style={{marginBottom:16}}>
+            <label htmlFor="login-pass" style={{display:"block",fontSize:11,fontWeight:700,color:P.muted,textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>Password</label>
+            <div style={{position:"relative"}}>
+              <input id="login-pass" type={showPass?"text":"password"} value={pass} onChange={e=>setPass(e.target.value)} required autoComplete="current-password"
+                style={{width:"100%",padding:"10px 40px 10px 12px",border:`1.5px solid ${error?P.red:P.line}`,borderRadius:9,fontSize:14,boxSizing:"border-box"}}/>
+              <button type="button" onClick={()=>setShowPass(s=>!s)}
+                style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:0,cursor:"pointer",fontSize:16,color:P.muted,padding:0}}
+                aria-label={showPass?"Hide password":"Show password"}>{showPass?"🙈":"👁️"}</button>
+            </div>
+          </div>
+          {error&&<div id="login-error" role="alert" style={{background:"#fff0f0",border:`1px solid ${P.red}`,borderRadius:8,padding:"8px 12px",fontSize:12,color:P.red,marginBottom:12,fontWeight:600}}>{error}</div>}
+          <button type="submit" disabled={loading}
+            style={{width:"100%",background:loading?"#94a3b8":activeRole?.color||P.blue,color:"#fff",border:0,borderRadius:10,padding:"13px",fontWeight:800,fontSize:15,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}
+            aria-busy={loading}>
+            {loading?<><span style={{display:"inline-block",width:16,height:16,border:"2px solid rgba(255,255,255,.4)",borderTopColor:"#fff",borderRadius:"50%",animation:"spin 0.7s linear infinite"}}/>Signing in…</>:`Sign in as ${activeRole?.label} →`}
+          </button>
+        </form>
+        <div style={{textAlign:"center",marginTop:16,fontSize:11,color:P.muted,lineHeight:1.6}}>
+          This is a <strong>demo environment</strong>. No real data is stored.<br/>
+          For emergencies call <strong style={{color:P.red}}>911</strong>.
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:20,flexWrap:"wrap",justifyContent:"center"}}>
+        {[["🟢","System online"],["🔒","Secure connection"],["♿","ADA compliant"]].map(([icon,label])=>(
+          <div key={label} style={{background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",borderRadius:20,padding:"5px 13px",fontSize:12,color:"#fff",display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>
+        ))}
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+function NavBar({page,setPage,live,user,onLogout}){
+  const allPages=[{id:"report",label:"📝 Report Crime"},{id:"dashboard",label:"📊 My Dashboard"},{id:"analytics",label:"📈 Analytics"},{id:"queue",label:"📋 Manage Queue"},{id:"admin",label:"🔐 Admin"}];
+  const pages=user==="citizen"?allPages.filter(p=>p.id!=="queue"&&p.id!=="admin"):allPages;
   return<nav aria-label="Main navigation" style={{background:P.navy,color:"#fff",padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px rgba(0,0,0,.25)",gap:12,flexWrap:"wrap"}}>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <div role="img" aria-label="Yonkers Public Safety shield logo" style={{width:32,height:32,borderRadius:8,background:"#fff",color:P.navy,display:"grid",placeItems:"center",fontWeight:900,fontSize:15}}>Y</div>
+      <svg width="28" height="32" viewBox="0 0 28 32" fill="none"><path d="M14 1L2 6V16C2 23 7 29 14 31C21 29 26 23 26 16V6L14 1Z" fill="rgba(255,255,255,0.2)" stroke="rgba(255,255,255,0.5)" strokeWidth="1"/><text x="14" y="20" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold" fontFamily="Arial">Y</text></svg>
       <span style={{fontWeight:800,fontSize:14,whiteSpace:"nowrap"}}>Yonkers Public Safety</span>
     </div>
     <div role="menubar" aria-label="Page navigation" style={{display:"flex",gap:3,alignItems:"center",flexWrap:"wrap"}}>
       {pages.map(p=><button key={p.id} role="menuitem" aria-current={page===p.id?"page":undefined} onClick={()=>setPage(p.id)} style={{background:page===p.id?"rgba(255,255,255,.17)":"transparent",color:"#fff",border:page===p.id?"1px solid rgba(255,255,255,.28)":"1px solid transparent",borderRadius:8,padding:"5px 11px",fontWeight:page===p.id?700:500,fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>{p.label}</button>)}
-      <span aria-live="polite" aria-label={live?"Live data":"Demo mode"} style={{marginLeft:6,background:"rgba(255,255,255,.11)",borderRadius:999,padding:"3px 10px",fontSize:11}}>{live?"🟢 Live":"🟡 Demo"}</span>
+      <span aria-live="polite" style={{marginLeft:6,background:"rgba(255,255,255,.11)",borderRadius:999,padding:"3px 10px",fontSize:11}}>{live?"🟢 Live":"🟡 Demo"}</span>
+      {user&&<div style={{display:"flex",alignItems:"center",gap:8,marginLeft:8,paddingLeft:10,borderLeft:"1px solid rgba(255,255,255,.2)"}}>
+        <span style={{fontSize:12,opacity:.85}}>{user==="admin"?"🔐 Admin":"🧑 Citizen"}</span>
+        <button onClick={onLogout} style={{background:"rgba(255,255,255,.12)",color:"#fff",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}} aria-label="Sign out">Sign out</button>
+      </div>}
     </div>
   </nav>;
 }
@@ -1331,21 +1436,37 @@ function PageAdmin({data,live}){
 
 // ── Root ──────────────────────────────────────────────────────────────────────
 export default function App(){
+  const[user,setUser]=useState(null); // null=logged out, "citizen"|"admin"
   const[page,setPage]=useState("report");
   const[filters,setFilters]=useState({days:"30",precinct:"All",channel:"All",priority:"All"});
   const{data,live,loading,reload}=useData(filters);
+
+  const handleLogin=(role,landing)=>{
+    setUser(role);
+    setPage(landing);
+  };
+  const handleLogout=()=>{
+    setUser(null);
+    setPage("report");
+  };
+
+  if(!user) return(
+    <div style={{fontFamily:"Inter,Segoe UI,Arial,sans-serif"}}>
+      <PageLogin onLogin={handleLogin}/>
+      <ADAToolbar/>
+    </div>
+  );
+
   return<div style={{fontFamily:"Inter,Segoe UI,Arial,sans-serif",color:P.text,minHeight:"100vh"}}>
-    {/* Skip nav — WCAG 2.4.1 */}
     <a href="#main-content" className="skip-nav">Skip to main content</a>
-    <NavBar page={page} setPage={setPage} live={live}/>
+    <NavBar page={page} setPage={setPage} live={live} user={user} onLogout={handleLogout}/>
     <main id="main-content" tabIndex={-1} style={{outline:"none"}}>
       {page==="report"   &&<PageReportCrime onSubmit={()=>reload()}/>}
       {page==="dashboard"&&<PageDashboard setPage={setPage}/>}
       {page==="analytics"&&<PageAnalytics data={data} live={live} loading={loading} reload={reload} filters={filters} setFilters={setFilters}/>}
-      {page==="queue"    &&<PageManageQueue data={data} live={live}/>}
-      {page==="admin"    &&<PageAdmin data={data} live={live}/>}
+      {page==="queue"    &&user==="admin"&&<PageManageQueue data={data} live={live}/>}
+      {page==="admin"    &&user==="admin"&&<PageAdmin data={data} live={live}/>}
     </main>
-    {/* ADA Accessibility Toolbar */}
     <ADAToolbar/>
   </div>;
 }
