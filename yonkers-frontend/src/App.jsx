@@ -1581,109 +1581,322 @@ function PageAdmin({data,live}){
 
       <div style={{padding:"16px 20px",flex:1}}>
 
-        {/* KPI cards */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:18}}>
-          {[
-            {label:"New Reports",value:queueRows.length,trend:`${unassigned} require initial review`,cl:P.text},
-            {label:"High Priority",value:criticalCount+highCount,trend:`${criticalCount} critical / active risk`,cl:P.red},
-            {label:"Avg. First Response",value:"06m",trend:"Target under 10 minutes",cl:P.green},
-            {label:"Queue Backlog",value:queueRows.filter(r=>r.status==="Needs Review").length,trend:"Down 8% from yesterday",cl:P.amber},
-          ].map(m=>(
-            <div key={m.label} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"15px 17px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
-              <div style={{fontSize:10,color:P.muted,fontWeight:700,marginBottom:3,textTransform:"uppercase",letterSpacing:".06em"}}>{m.label}</div>
-              <div style={{fontSize:28,fontWeight:900,color:m.cl,margin:"4px 0 2px"}}>{m.value}</div>
-              <div style={{fontSize:11,color:P.muted}}>{m.trend}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Priority queue table */}
-        <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)",marginBottom:16}}>
-          <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-            <h3 style={{margin:0,fontSize:14,fontWeight:800}}>Priority Report Queue</h3>
-            <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-              <select value={filterPriority} onChange={e=>setFilterPriority(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
-                <option>All</option><option>Critical</option><option>High</option><option>Normal</option>
-              </select>
-              <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
-                <option>All</option><option>Needs Review</option><option>Assigned</option><option>Evidence Review</option><option>Dispatched</option>
-              </select>
-              {[["Critical","#ffe7e7","#b42323"],["High","#fff2cc","#925a00"],["Unassigned","#f1f5f9","#475569"],["Evidence Attached","#eef4ff","#174073"]].map(([l,bg,cl])=>(
-                <span key={l} style={{background:bg,color:cl,borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:10}}>{l}: {l==="Critical"?criticalCount:l==="High"?highCount:l==="Unassigned"?unassigned:evidenceCount}</span>
-              ))}
-            </div>
+        {/* ── System Dashboard ── */}
+        {activeSection==="System Dashboard"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:18}}>
+            {[{label:"New Reports",value:queueRows.length,trend:`${unassigned} require initial review`,cl:P.text},{label:"High Priority",value:criticalCount+highCount,trend:`${criticalCount} critical / active risk`,cl:P.red},{label:"Avg. First Response",value:"06m",trend:"Target under 10 minutes",cl:P.green},{label:"Queue Backlog",value:queueRows.filter(r=>r.status==="Needs Review").length,trend:"Down 8% from yesterday",cl:P.amber}].map(m=>(
+              <div key={m.label} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"15px 17px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,marginBottom:3,textTransform:"uppercase",letterSpacing:".06em"}}>{m.label}</div>
+                <div style={{fontSize:28,fontWeight:900,color:m.cl,margin:"4px 0 2px"}}>{m.value}</div>
+                <div style={{fontSize:11,color:P.muted}}>{m.trend}</div>
+              </div>
+            ))}
           </div>
-          <div className="table-wrap" style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:"#f8faff"}}>
-                {["Case","Issue","Location","Priority","Status","Assigned To","SLA","Action"].map(h=>(
-                  <th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap",letterSpacing:".05em"}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {filtered.map(r=>(
-                  <tr key={r.id} style={{cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,whiteSpace:"nowrap"}} onClick={()=>setSelected(r)}>{r.id}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}{r.evidence&&<span style={{marginLeft:6,fontSize:10,background:"#eef4ff",color:"#174073",borderRadius:4,padding:"1px 5px"}}>📎</span>}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:r.team==="Unassigned"?P.red:P.text,fontWeight:r.team==="Unassigned"?700:400}}>{r.team}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:slaColor(r.sla),fontWeight:600,whiteSpace:"nowrap"}}>{r.sla||"—"}</td>
-                    <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>
-                      <div style={{display:"flex",gap:5}}>
-                        <button onClick={()=>setSelected(r)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Review</button>
-                        <button onClick={()=>setAssignModal(r)} style={{background:"#e8f6ee",color:"#146c3e",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Assign</button>
-                        <button onClick={()=>setEscalateModal(r)} style={{background:"#fff2cc",color:"#925a00",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Escalate</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length===0&&<tr><td colSpan={8} style={{padding:"24px",textAlign:"center",color:P.muted,fontSize:13}}>No cases match your filters.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Bottom row: system status + audit log */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
-          {/* System status */}
-          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
-            <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>System Status</h3>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-              {[
-                {name:"CAD / RMS",status:"Connected",bg:"#e8f6ee",cl:"#146c3e",icon:"🔗"},
-                {name:"GIS Map Service",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🗺️"},
-                {name:"Notification Service",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🔔"},
-                {name:"Evidence Storage",status:"85% capacity",bg:"#fff2cc",cl:"#925a00",icon:"💾"},
-                {name:"API Gateway",status:"Healthy",bg:"#e8f6ee",cl:"#146c3e",icon:"⚙️"},
-                {name:"Audit Logger",status:"Running",bg:"#e8f6ee",cl:"#146c3e",icon:"📜"},
-              ].map(s=>(
-                <div key={s.name} style={{border:`1px solid ${P.line}`,borderRadius:10,padding:"12px 13px"}}>
-                  <div style={{fontSize:18,marginBottom:6}}>{s.icon}</div>
-                  <div style={{fontSize:12,fontWeight:700,marginBottom:5,color:P.text}}>{s.name}</div>
-                  <span style={{background:s.bg,color:s.cl,borderRadius:999,padding:"2px 9px",fontWeight:700,fontSize:10}}>{s.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Audit log */}
-          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
-            <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Audit Log</h3>
-            <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:220,overflowY:"auto"}}>
-              {auditLog.map((a,i)=>(
-                <div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderBottom:`1px solid ${P.line}`,alignItems:"flex-start"}}>
-                  <span style={{fontSize:10,color:P.muted,whiteSpace:"nowrap",marginTop:1,minWidth:60}}>{a.time}</span>
-                  <div>
-                    <span style={{fontSize:10,fontWeight:700,color:P.blue,marginRight:4}}>{a.user}</span>
-                    <span style={{fontSize:11,color:P.text}}>{a.action}</span>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>System Status</h3>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                {[{name:"CAD / RMS",status:"Connected",bg:"#e8f6ee",cl:"#146c3e",icon:"🔗"},{name:"GIS Map",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🗺️"},{name:"Notifications",status:"Active",bg:"#e8f6ee",cl:"#146c3e",icon:"🔔"},{name:"Evidence Storage",status:"85% full",bg:"#fff2cc",cl:"#925a00",icon:"💾"},{name:"API Gateway",status:"Healthy",bg:"#e8f6ee",cl:"#146c3e",icon:"⚙️"},{name:"Audit Logger",status:"Running",bg:"#e8f6ee",cl:"#146c3e",icon:"📜"}].map(s=>(
+                  <div key={s.name} style={{border:`1px solid ${P.line}`,borderRadius:10,padding:"12px 13px"}}>
+                    <div style={{fontSize:18,marginBottom:6}}>{s.icon}</div>
+                    <div style={{fontSize:11,fontWeight:700,marginBottom:5,color:P.text}}>{s.name}</div>
+                    <span style={{background:s.bg,color:s.cl,borderRadius:999,padding:"2px 8px",fontWeight:700,fontSize:10}}>{s.status}</span>
                   </div>
+                ))}
+              </div>
+            </div>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Live Audit Log</h3>
+              <div style={{maxHeight:240,overflowY:"auto"}}>
+                {auditLog.map((a,i)=>(
+                  <div key={i} style={{display:"flex",gap:10,padding:"7px 0",borderBottom:`1px solid ${P.line}`}}>
+                    <span style={{fontSize:10,color:P.muted,whiteSpace:"nowrap",minWidth:60}}>{a.time}</span>
+                    <div><span style={{fontSize:10,fontWeight:700,color:P.blue,marginRight:4}}>{a.user}</span><span style={{fontSize:11,color:P.text}}>{a.action}</span></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>}
+
+        {/* ── Queue Management ── */}
+        {activeSection==="Queue Management"&&<>
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+              <h3 style={{margin:0,fontSize:14,fontWeight:800}}>Case Queue</h3>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                <select value={filterPriority} onChange={e=>setFilterPriority(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
+                  <option>All</option><option>Critical</option><option>High</option><option>Normal</option>
+                </select>
+                <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{padding:"4px 8px",border:`1px solid ${P.line}`,borderRadius:6,fontSize:11,background:P.card}}>
+                  <option>All</option><option>Needs Review</option><option>Assigned</option><option>Evidence Review</option><option>Dispatched</option>
+                </select>
+              </div>
+            </div>
+            <div className="table-wrap" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f8faff"}}>{["Case","Issue","Location","Priority","Status","Assigned To","SLA","Action"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {filtered.map(r=>(
+                    <tr key={r.id} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,cursor:"pointer"}} onClick={()=>setSelected(r)}>{r.id}</td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}{r.evidence&&<span style={{marginLeft:6,fontSize:10,background:"#eef4ff",color:"#174073",borderRadius:4,padding:"1px 5px"}}>📎</span>}</td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:r.team==="Unassigned"?P.red:P.text,fontWeight:r.team==="Unassigned"?700:400}}>{r.team}</td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`,color:slaColor(r.sla),fontWeight:600,whiteSpace:"nowrap"}}>{r.sla||"—"}</td>
+                      <td style={{padding:"10px 12px",borderBottom:`1px solid ${P.line}`}}>
+                        <div style={{display:"flex",gap:5}}>
+                          <button onClick={()=>setSelected(r)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Review</button>
+                          <button onClick={()=>setAssignModal(r)} style={{background:"#e8f6ee",color:"#146c3e",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Assign</button>
+                          <button onClick={()=>setEscalateModal(r)} style={{background:"#fff2cc",color:"#925a00",border:0,borderRadius:6,padding:"5px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Escalate</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length===0&&<tr><td colSpan={8} style={{padding:"24px",textAlign:"center",color:P.muted,fontSize:13}}>No cases match filters.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>}
+
+        {/* ── Submitted Reports ── */}
+        {activeSection==="Submitted Reports"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}}>
+            {[["Total Reports",queueRows.length,P.text],["Pending",queueRows.filter(r=>r.status==="Pending").length,P.amber],["Under Review",queueRows.filter(r=>r.status==="Under Review"||r.status==="Needs Review").length,P.blue],["Resolved",queueRows.filter(r=>r.status==="Resolved").length,P.green]].map(([l,v,cl])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:26,fontWeight:900,color:cl}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <h3 style={{margin:0,fontSize:14,fontWeight:800}}>All Submitted Reports</h3>
+              <button onClick={doExport} style={{background:"#eef4ff",color:P.blue,border:0,borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📥 Export CSV</button>
+            </div>
+            <div className="table-wrap" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f8faff"}}>{["Case ID","Category","Location","Priority","Status","Team","Submitted","Action"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {queueRows.map(r=>(
+                    <tr key={r.id} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,cursor:"pointer"}} onClick={()=>setSelected(r)}>{r.id}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>{r.team}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:11}}>{r.sla}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><button onClick={()=>setSelected(r)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"4px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>View</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>}
+
+        {/* ── Dispatch / Assignment ── */}
+        {activeSection==="Dispatch / Assignment"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:16}}>
+            {[["Unassigned",queueRows.filter(r=>r.team==="Unassigned").length,P.red,"🚨"],["Active Units",UNITS.length,P.green,"🚔"],["On Scene",queueRows.filter(r=>r.status==="Assigned").length,P.blue,"📍"],["Dispatched",queueRows.filter(r=>r.status==="Dispatched").length,P.amber,"📡"]].map(([l,v,cl,icon])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)",display:"flex",gap:12,alignItems:"center"}}>
+                <div style={{fontSize:28}}>{icon}</div>
+                <div><div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:24,fontWeight:900,color:cl}}>{v}</div></div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:800}}>Unassigned Cases</h3>
+              {queueRows.filter(r=>r.team==="Unassigned").length===0
+                ?<div style={{padding:"20px",textAlign:"center",color:P.green,fontSize:13}}>✅ All cases assigned!</div>
+                :queueRows.filter(r=>r.team==="Unassigned").map(r=>(
+                  <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${P.line}`,flexWrap:"wrap",gap:8}}>
+                    <div>
+                      <div style={{fontWeight:700,color:P.blue,fontSize:13}}>{r.id}</div>
+                      <div style={{fontSize:11,color:P.muted}}>{r.category} · {r.location}</div>
+                    </div>
+                    <button onClick={()=>setAssignModal(r)} style={{background:P.blue,color:"#fff",border:0,borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Assign Now</button>
+                  </div>
+                ))
+              }
+            </div>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:800}}>Unit Status Board</h3>
+              {UNITS.map(u=>{
+                const active=queueRows.filter(r=>r.team===u&&r.status!=="Resolved");
+                return(
+                  <div key={u} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${P.line}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",background:active.length>0?P.amber:P.green,flexShrink:0}}></span>
+                      <span style={{fontSize:13,fontWeight:500}}>{u}</span>
+                    </div>
+                    <span style={{fontSize:11,color:active.length>0?P.amber:P.green,fontWeight:700}}>{active.length>0?`${active.length} active`:"Available"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>}
+
+        {/* ── Evidence Review ── */}
+        {activeSection==="Evidence Review"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}}>
+            {[["With Evidence",queueRows.filter(r=>r.evidence).length,P.blue],["Pending Review",queueRows.filter(r=>r.evidence&&r.status==="Evidence Review").length,P.amber],["Reviewed",queueRows.filter(r=>r.evidence&&r.status==="Assigned").length,P.green],["Storage Used","85%",P.amber]].map(([l,v,cl])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:26,fontWeight:900,color:cl}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`}}>
+              <h3 style={{margin:0,fontSize:14,fontWeight:800}}>Cases with Evidence Attached</h3>
+            </div>
+            <div className="table-wrap" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f8faff"}}>{["Case","Category","Location","Priority","Status","Evidence","Action"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {queueRows.filter(r=>r.evidence).map(r=>(
+                    <tr key={r.id} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:700,color:P.blue,cursor:"pointer"}} onClick={()=>setSelected(r)}>{r.id}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>{r.category}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>{r.location}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><PBadge p={r.priority}/></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><SBadge s={r.status}/></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><span style={{background:"#eef4ff",color:"#174073",borderRadius:4,padding:"2px 7px",fontSize:11,fontWeight:700}}>📎 Attached</span></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>
+                        <div style={{display:"flex",gap:5}}>
+                          <button onClick={()=>setSelected(r)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"4px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Review</button>
+                          <button onClick={()=>{addAudit(`Evidence approved for ${r.id}`);showToast(`✅ Evidence approved for ${r.id}`);}} style={{background:"#e8f6ee",color:"#146c3e",border:0,borderRadius:6,padding:"4px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Approve</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>}
+
+        {/* ── Analytics ── */}
+        {activeSection==="Analytics"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}}>
+            {[["Total Cases",queueRows.length,P.navy],["Critical",criticalCount,P.red],["High",highCount,P.amber],["Resolution Rate",`${Math.round(queueRows.filter(r=>r.status==="Resolved").length/queueRows.length*100)||0}%`,P.green]].map(([l,v,cl])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:26,fontWeight:900,color:cl}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:14}}>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Cases by Category</h3>
+              {Object.entries(queueRows.reduce((a,r)=>{a[r.category]=(a[r.category]||0)+1;return a;},{})).map(([cat,cnt])=>(
+                <div key={cat} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:12}}><span>{cat}</span><span style={{fontWeight:700}}>{cnt}</span></div>
+                  <div style={{height:6,background:"#e8eef6",borderRadius:999}}><div style={{height:6,background:P.blue,borderRadius:999,width:`${(cnt/queueRows.length*100).toFixed(0)}%`}}/></div>
                 </div>
               ))}
             </div>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Cases by Status</h3>
+              {Object.entries(queueRows.reduce((a,r)=>{a[r.status]=(a[r.status]||0)+1;return a;},{})).map(([st,cnt])=>(
+                <div key={st} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${P.line}`,fontSize:13}}>
+                  <SBadge s={st}/><span style={{fontWeight:700}}>{cnt}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,padding:16,boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+              <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:800}}>Cases by Unit</h3>
+              {UNITS.map(u=>{const cnt=queueRows.filter(r=>r.team===u).length;return cnt>0&&(
+                <div key={u} style={{marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:12}}><span>{u}</span><span style={{fontWeight:700}}>{cnt}</span></div>
+                  <div style={{height:6,background:"#e8eef6",borderRadius:999}}><div style={{height:6,background:P.green,borderRadius:999,width:`${(cnt/queueRows.length*100).toFixed(0)}%`}}/></div>
+                </div>
+              );})}
+            </div>
           </div>
-        </div>
+        </>}
+
+        {/* ── Users & Roles ── */}
+        {activeSection==="Users & Roles"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}}>
+            {[["Total Users","12",P.navy],["Admins","2",P.red],["Dispatchers","4",P.blue],["Officers","6",P.green]].map(([l,v,cl])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:26,fontWeight:900,color:cl}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <h3 style={{margin:0,fontSize:14,fontWeight:800}}>User Management</h3>
+              <button onClick={()=>showToast("➕ Add User feature coming soon")} style={{background:P.blue,color:"#fff",border:0,borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Add User</button>
+            </div>
+            <div className="table-wrap" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f8faff"}}>{["Name","Email","Role","Unit","Status","Last Login","Action"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {[{name:"Admin User",email:"admin@srm-safety.com",role:"Admin",unit:"HQ",status:"Active",last:"Just now"},{name:"Dispatch #1",email:"dispatch1@srm-safety.com",role:"Dispatcher",unit:"Patrol Desk",status:"Active",last:"5 min ago"},{name:"Officer Carter",email:"carter@srm-safety.com",role:"Officer",unit:"Field Unit A",status:"Active",last:"12 min ago"},{name:"Officer Lopez",email:"lopez@srm-safety.com",role:"Officer",unit:"Field Unit B",status:"Active",last:"18 min ago"},{name:"Sgt. Rivera",email:"rivera@srm-safety.com",role:"Supervisor",unit:"Investigations",status:"Active",last:"1 hr ago"},{name:"K9 Handler",email:"k9@srm-safety.com",role:"Officer",unit:"K9 Unit",status:"On Leave",last:"2 days ago"}].map(u=>(
+                    <tr key={u.email} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,fontWeight:600}}>{u.name}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:12}}>{u.email}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><span style={{background:u.role==="Admin"?"#ffe7e7":u.role==="Supervisor"?"#fff2cc":"#eef4ff",color:u.role==="Admin"?P.red:u.role==="Supervisor"?P.amber:P.blue,borderRadius:999,padding:"2px 8px",fontWeight:700,fontSize:11}}>{u.role}</span></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,fontSize:12}}>{u.unit}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><span style={{background:u.status==="Active"?"#e8f6ee":"#f1f5f9",color:u.status==="Active"?P.green:P.muted,borderRadius:999,padding:"2px 8px",fontWeight:700,fontSize:11}}>{u.status}</span></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:11}}>{u.last}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}>
+                        <div style={{display:"flex",gap:5}}>
+                          <button onClick={()=>showToast(`✏️ Editing ${u.name}`)} style={{background:"#eef4ff",color:"#174073",border:0,borderRadius:6,padding:"4px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Edit</button>
+                          <button onClick={()=>{addAudit(`Reset password for ${u.name}`);showToast(`🔑 Password reset sent to ${u.email}`);}} style={{background:"#fff2cc",color:"#925a00",border:0,borderRadius:6,padding:"4px 9px",fontWeight:700,fontSize:11,cursor:"pointer"}}>Reset</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>}
+
+        {/* ── Audit Log ── */}
+        {activeSection==="Audit Log"&&<>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:16}}>
+            {[["Total Events",auditLog.length,P.navy],["Today",auditLog.length,P.blue],["Admin Actions",auditLog.filter(a=>a.user==="Admin").length,P.amber],["System Events",auditLog.filter(a=>a.user==="System").length,P.muted]].map(([l,v,cl])=>(
+              <div key={l} style={{background:P.card,border:`1px solid ${P.line}`,borderRadius:13,padding:"14px 16px",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+                <div style={{fontSize:10,color:P.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{l}</div>
+                <div style={{fontSize:26,fontWeight:900,color:cl}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:P.card,borderRadius:13,border:`1px solid ${P.line}`,overflow:"hidden",boxShadow:"0 4px 12px rgba(15,35,63,.06)"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${P.line}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <h3 style={{margin:0,fontSize:14,fontWeight:800}}>Full Audit Log</h3>
+              <button onClick={()=>{const csv=["Time,User,Action",...auditLog.map(a=>`${a.time},${a.user},"${a.action}"`)].join("\n");const el=document.createElement("a");el.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);el.download="srm_audit_log.csv";el.click();showToast("📥 Audit log exported");}} style={{background:"#eef4ff",color:P.blue,border:0,borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📥 Export</button>
+            </div>
+            <div className="table-wrap" style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead><tr style={{background:"#f8faff"}}>{["Time","User","Action","Type"].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {auditLog.map((a,i)=>(
+                    <tr key={i} onMouseEnter={e=>e.currentTarget.style.background="#f8faff"} onMouseLeave={e=>e.currentTarget.style.background=""}>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,color:P.muted,fontSize:11,whiteSpace:"nowrap"}}>{a.time}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><span style={{fontWeight:700,color:a.user==="System"?P.muted:a.user==="Admin"?P.red:P.blue,fontSize:12}}>{a.user}</span></td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`,fontSize:12}}>{a.action}</td>
+                      <td style={{padding:"9px 12px",borderBottom:`1px solid ${P.line}`}}><span style={{background:a.action.includes("EMERGENCY")?"#ffe7e7":a.action.includes("Escalated")?"#fff2cc":a.action.includes("Assigned")?"#e8f6ee":"#f1f5f9",color:a.action.includes("EMERGENCY")?P.red:a.action.includes("Escalated")?P.amber:a.action.includes("Assigned")?P.green:P.muted,borderRadius:999,padding:"2px 8px",fontWeight:700,fontSize:10}}>{a.action.includes("EMERGENCY")?"Critical":a.action.includes("Escalated")?"Escalation":a.action.includes("Assigned")?"Assignment":"General"}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>}
+
       </div>
     </main>
   </div>;
